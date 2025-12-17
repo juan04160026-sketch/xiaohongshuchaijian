@@ -1,0 +1,176 @@
+.publish-monitor {
+  background-color: #fff;
+  border-radius: 4px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.monitor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.monitor-header h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #333;
+}
+
+.monitor-controls {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-primary,
+.btn-danger {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background-color: #1890ff;
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background-color: #40a9ff;
+}
+
+.btn-danger {
+  background-color: #f5222d;
+  color: #fff;
+}
+
+.btn-danger:hover {
+  background-color: #ff4d4f;
+}
+
+.monitor-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 15px;
+  margin-bottom: 30px;
+}
+
+.stat-card {
+  background-color: #fafafa;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 15px;
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 600;
+  color: #333;
+}
+
+.progress-section {
+  margin-bottom: 30px;
+}
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #666;
+}
+
+.progress-percentage {
+  font-weight: 600;
+  color: #1890ff;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 24px;
+  background-color: #e0e0e0;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1890ff, #52c41a);
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  text-align: center;
+  font-size: 12px;
+  color: #999;
+}
+
+.logs-section {
+  margin-top: 30px;
+}
+
+.logs-section h3 {
+  margin: 0 0 15px 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.logs-list {
+  background-color: #fafafa;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.empty-logs {
+  padding: 20px;
+  text-align: center;
+  color: #999;
+}
+
+.log-item {
+  padding: 10px 15px;
+  border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.log-item:last-child {
+  border-bottom: none;
+}
+
+.log-time {
+  color: #999;
+  min-width: 80px;
+}
+
+.log-message {
+  flex: 1;
+  color: #666;
+}
+
+.log-info {
+  color: #1890ff;
+}
+
+.log-warn {
+  color: #faad14;
+}
+
+.log-error {
+  color: #f5222d;
+}

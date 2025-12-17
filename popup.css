@@ -1,0 +1,299 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 100%;
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #f5f5f5;
+}
+
+.container {
+  padding: 15px;
+  max-width: 100%;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 18px;
+  color: #333;
+  margin-bottom: 15px;
+}
+
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.tab-btn {
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  font-size: 14px;
+  border-bottom: 2px solid transparent;
+  transition: all 0.3s;
+}
+
+.tab-btn.active {
+  color: #1890ff;
+  border-bottom-color: #1890ff;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+.form-group {
+  margin-bottom: 12px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.btn-primary {
+  background-color: #1890ff;
+  color: #fff;
+  width: 100%;
+}
+
+.btn-primary:hover {
+  background-color: #40a9ff;
+}
+
+.btn-success {
+  background-color: #52c41a;
+  color: #fff;
+}
+
+.btn-success:hover:not(:disabled) {
+  background-color: #73d13d;
+}
+
+.btn-warning {
+  background-color: #faad14;
+  color: #fff;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background-color: #fbc53d;
+}
+
+.btn-danger {
+  background-color: #f5222d;
+  color: #fff;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: #ff4d4f;
+}
+
+.btn-small {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+a {
+  color: #1890ff;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.message {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  display: none;
+}
+
+.message.success {
+  display: block;
+  background-color: #f6ffed;
+  color: #52c41a;
+  border: 1px solid #b7eb8f;
+}
+
+.message.error {
+  display: block;
+  background-color: #fff1f0;
+  color: #f5222d;
+  border: 1px solid #ffccc7;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.stat-item {
+  background: #fff;
+  padding: 12px;
+  border-radius: 4px;
+  text-align: center;
+  border: 1px solid #e0e0e0;
+}
+
+.stat-label {
+  display: block;
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  display: block;
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+}
+
+.progress-section {
+  margin-bottom: 15px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 20px;
+  background-color: #e0e0e0;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 5px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1890ff, #52c41a);
+  width: 0%;
+  transition: width 0.3s;
+}
+
+.progress-text {
+  text-align: center;
+  font-size: 12px;
+  color: #666;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.controls .btn {
+  flex: 1;
+  padding: 8px;
+}
+
+.logs-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.logs-controls input {
+  flex: 1;
+  padding: 6px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.logs-list {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  max-height: calc(100vh - 300px);
+  min-height: 200px;
+  overflow-y: auto;
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+}
+
+.log-item {
+  padding: 6px 8px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.log-item:last-child {
+  border-bottom: none;
+}
+
+.log-time {
+  color: #999;
+  min-width: 60px;
+  flex-shrink: 0;
+}
+
+.log-message {
+  flex: 1;
+  color: #666;
+  word-break: break-word;
+}
+
+.log-item.log-level-info .log-message {
+  color: #1890ff;
+}
+
+.log-item.log-level-success .log-message {
+  color: #52c41a;
+}
+
+.log-item.log-level-warn .log-message {
+  color: #faad14;
+}
+
+.log-item.log-level-error .log-message {
+  color: #f5222d;
+}

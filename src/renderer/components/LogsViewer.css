@@ -1,0 +1,181 @@
+.logs-viewer {
+  background-color: #fff;
+  border-radius: 4px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.logs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.logs-header h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #333;
+}
+
+.logs-header button {
+  padding: 8px 16px;
+  background-color: #1890ff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s ease;
+}
+
+.logs-header button:hover:not(:disabled) {
+  background-color: #40a9ff;
+}
+
+.logs-header button:disabled {
+  background-color: #d9d9d9;
+  cursor: not-allowed;
+}
+
+.logs-filters {
+  margin-bottom: 20px;
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.search-box {
+  flex: 1;
+  min-width: 300px;
+  display: flex;
+  gap: 10px;
+}
+
+.search-box input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.search-box input:focus {
+  outline: none;
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.search-box button {
+  padding: 8px 16px;
+  background-color: #1890ff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s ease;
+}
+
+.search-box button:hover {
+  background-color: #40a9ff;
+}
+
+.filter-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.filter-btn {
+  padding: 6px 12px;
+  background-color: #f0f0f0;
+  color: #666;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.filter-btn:hover {
+  background-color: #e0e0e0;
+}
+
+.filter-btn.active {
+  background-color: #1890ff;
+  color: #fff;
+  border-color: #1890ff;
+}
+
+.logs-content {
+  margin-bottom: 20px;
+}
+
+.empty-logs {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+}
+
+.logs-table {
+  overflow-x: auto;
+}
+
+.logs-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.logs-table th {
+  background-color: #fafafa;
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #333;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.logs-table td {
+  padding: 12px;
+  border-bottom: 1px solid #e0e0e0;
+  color: #666;
+}
+
+.logs-table tr:hover {
+  background-color: #f9f9f9;
+}
+
+.logs-table .time {
+  width: 180px;
+  font-size: 12px;
+  color: #999;
+}
+
+.logs-table .task-id {
+  width: 150px;
+  font-size: 12px;
+  color: #999;
+  font-family: monospace;
+}
+
+.logs-table .message {
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.level-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.logs-footer {
+  text-align: right;
+  font-size: 12px;
+  color: #999;
+}

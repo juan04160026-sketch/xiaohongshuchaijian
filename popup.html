@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小红书自动发布</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>小红书自动发布</h1>
+    
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="config">配置</button>
+      <button class="tab-btn" data-tab="publish">发布</button>
+      <button class="tab-btn" data-tab="logs">日志</button>
+    </div>
+
+    <!-- 配置标签 -->
+    <div id="config" class="tab-content active">
+      <div class="form-group">
+        <label>飞书 App ID</label>
+        <input type="text" id="feishuAppId" placeholder="输入飞书 App ID">
+      </div>
+      <div class="form-group">
+        <label>飞书 App Secret</label>
+        <input type="password" id="feishuAppSecret" placeholder="输入飞书 App Secret">
+      </div>
+      <div class="form-group">
+        <label>飞书表格 ID</label>
+        <input type="text" id="feishuTableId" placeholder="输入飞书表格 ID">
+      </div>
+      
+      <div class="form-group" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e8e8e8;">
+        <label>📁 本地图片目录</label>
+        <input type="text" id="imageDir" placeholder="例如: C:\Users\你的用户名\Pictures\商品图片">
+        <p style="font-size: 11px; color: #888; margin-top: 4px;">
+          图片文件名需与商品ID一致，如：123456.png 或 123456.jpg
+        </p>
+      </div>
+      <button id="saveConfig" class="btn btn-primary">保存配置</button>
+      <button id="testConfig" class="btn btn-warning" style="margin-top: 8px;">测试连接</button>
+      <div id="configMessage" class="message"></div>
+      
+      <div style="margin-top: 15px; padding: 10px; background: #f0f2f5; border-radius: 4px; font-size: 12px; color: #666;">
+        <strong>📖 获取凭证:</strong><br>
+        1. 访问 <a href="https://open.feishu.cn/" target="_blank" style="color: #1890ff;">飞书开放平台</a><br>
+        2. 创建应用获取 App ID 和 Secret<br>
+        3. 确保应用有以下权限：
+        <ul style="margin: 5px 0 0 15px; padding: 0;">
+          <li>✅ <code style="background: #fff; padding: 2px 4px;">bitable:app:readonly</code></li>
+          <li>✅ <code style="background: #fff; padding: 2px 4px;">bitable:table:readonly</code></li>
+        </ul>
+        4. 获取 Base ID (多维表格 ID):
+        <ul style="margin: 5px 0 0 15px; padding: 0;">
+          <li>打开飞书多维表格</li>
+          <li>从 URL 中复制: <code style="background: #fff; padding: 2px 4px;">/base/XXXXXXXX</code></li>
+          <li>只需要 <code style="background: #fff; padding: 2px 4px;">XXXXXXXX</code> 部分</li>
+          <li>例如: <code style="background: #fff; padding: 2px 4px;">GGh2bW3Q2aHpi1shiVqcAlhmnMd</code></li>
+        </ul>
+        5. 点击"测试连接"验证配置
+        <br><br>
+        <strong>❓ 连接失败？</strong><br>
+        • 检查 App ID 和 Secret 是否正确<br>
+        • 确保应用已发布<br>
+        • 确保应用有必要的权限<br>
+        • 打开浏览器开发者工具 (F12) 查看详细错误信息
+      </div>
+    </div>
+
+    <!-- 发布标签 -->
+    <div id="publish" class="tab-content">
+      <div class="stats">
+        <div class="stat-item">
+          <span class="stat-label">待发布</span>
+          <span class="stat-value" id="pendingCount">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">已发布</span>
+          <span class="stat-value" id="publishedCount">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">失败</span>
+          <span class="stat-value" id="failedCount">0</span>
+        </div>
+      </div>
+      
+      <div class="progress-section">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-text" id="progressText">0%</div>
+      </div>
+
+      <div class="controls">
+        <button id="startPublish" class="btn btn-success">开始发布</button>
+        <button id="pausePublish" class="btn btn-warning" disabled>暂停</button>
+        <button id="stopPublish" class="btn btn-danger" disabled>停止</button>
+      </div>
+
+      <div id="publishMessage" class="message"></div>
+
+      <div style="margin-top: 15px; padding: 10px; background: #fff7e6; border-radius: 4px; font-size: 12px; color: #666;">
+        <strong>💡 使用提示:</strong><br>
+        • 点击"开始发布"前，请确保已配置飞书凭证<br>
+        • 插件会自动打开小红书创作服务平台发布页面<br>
+        • 发布地址: <a href="https://creator.xiaohongshu.com/publish/publish?source=official&from=menu&target=image" target="_blank" style="color: #1890ff;">creator.xiaohongshu.com</a><br>
+        • 每条内容发布间隔为 30 秒<br>
+        • 发布过程中可以暂停、继续或停止<br>
+        • 如果发布失败，请查看浏览器控制台 (F12) 的错误信息
+      </div>
+    </div>
+
+    <!-- 日志标签 -->
+    <div id="logs" class="tab-content">
+      <div class="logs-controls">
+        <input type="text" id="logSearch" placeholder="搜索日志...">
+        <button id="clearLogs" class="btn btn-small">清空日志</button>
+      </div>
+      <div id="logsList" class="logs-list"></div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

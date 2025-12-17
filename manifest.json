@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "小红书自动发布助手",
+  "version": "1.0.0",
+  "description": "从飞书自动发布内容到小红书",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "tabs",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "https://www.xiaohongshu.com/*",
+    "https://creator.xiaohongshu.com/*",
+    "https://edith.xiaohongshu.com/*",
+    "https://open.feishu.cn/*",
+    "https://feishu.cn/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://www.xiaohongshu.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_title": "小红书自动发布"
+  },
+  "side_panel": {
+    "default_path": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "scripts": ["panel.js"]
+}
