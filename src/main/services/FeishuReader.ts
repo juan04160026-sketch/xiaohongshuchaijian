@@ -1,11 +1,10 @@
-import axios, { AxiosInstance } from 'axios';
+import { net } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { PublishTask, FeishuConfig } from '../../types';
 
 export class FeishuReader {
-  private client: AxiosInstance | null = null;
   private config: FeishuConfig | null = null;
   private accessToken: string | null = null;
   private imageDir: string;
@@ -18,22 +17,65 @@ export class FeishuReader {
     }
   }
 
+  // 使用 Electron net 模块发送请求（自动使用系统代理）
+  private makeRequest(url: string, options: any = {}): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const request = net.request({
+        method: options.method || 'GET',
+        url: url,
+      });
+
+      if (options.headers) {
+        Object.entries(options.headers).forEach(([key, value]) => {
+          request.setHeader(key, value as string);
+        });
+      }
+
+      const chunks: Buffer[] = [];
+
+      request.on('response', (response: any) => {
+        response.on('data', (chunk: Buffer) => {
+          chunks.push(chunk);
+        });
+        response.on('end', () => {
+          const data = Buffer.concat(chunks);
+          if (options.responseType === 'arraybuffer') {
+            resolve({ data, status: response.statusCode });
+          } else {
+            try {
+              resolve({ data: JSON.parse(data.toString()), status: response.statusCode });
+            } catch {
+              resolve({ data: data.toString(), status: response.statusCode });
+            }
+          }
+        });
+      });
+
+      request.on('error', (error: Error) => {
+        reject(error);
+      });
+
+      if (options.body) {
+        request.setHeader('Content-Type', 'application/json');
+        request.write(JSON.stringify(options.body));
+      }
+
+      request.end();
+    });
+  }
+
   async connect(config: FeishuConfig): Promise<void> {
     this.config = config;
-    this.client = axios.create({
-      baseURL: 'https://open.feishu.cn/open-apis',
-      timeout: 30000,
-    });
     await this.refreshAccessToken();
     console.log('✅ 飞书连接成功');
   }
 
   async validateConnection(): Promise<boolean> {
-    if (!this.client || !this.accessToken) {
+    if (!this.accessToken) {
       return false;
     }
     try {
-      await this.client.get('/drive/v1/files', {
+      await this.makeRequest('https://open.feishu.cn/open-apis/drive/v1/files', {
         headers: { Authorization: `Bearer ${this.accessToken}` },
       });
       return true;
@@ -42,16 +84,17 @@ export class FeishuReader {
     }
   }
 
+
   // 获取待发布的记录
   async fetchPendingRecords(): Promise<PublishTask[]> {
-    if (!this.client || !this.config) {
+    if (!this.config) {
       throw new Error('飞书未连接');
     }
 
     try {
       // 获取表格列表
-      const tablesRes = await this.client.get(
-        `/bitable/v1/apps/${this.config.tableId}/tables`,
+      const tablesRes = await this.makeRequest(
+        `https://open.feishu.cn/open-apis/bitable/v1/apps/${this.config.tableId}/tables`,
         { headers: { Authorization: `Bearer ${this.accessToken}` } }
       );
       
@@ -64,10 +107,9 @@ export class FeishuReader {
       const tableId = tables[0].table_id;
       console.log(`📋 读取表格: ${tableId}`);
 
-
       // 获取记录
-      const recordsRes = await this.client.get(
-        `/bitable/v1/apps/${this.config.tableId}/tables/${tableId}/records`,
+      const recordsRes = await this.makeRequest(
+        `https://open.feishu.cn/open-apis/bitable/v1/apps/${this.config.tableId}/tables/${tableId}/records`,
         { headers: { Authorization: `Bearer ${this.accessToken}` } }
       );
 
@@ -164,8 +206,8 @@ export class FeishuReader {
       try {
         const filePath = path.join(this.imageDir, `${recordId}_${i}.png`);
         
-        const response = await this.client!.get(
-          `/drive/v1/medias/${attachment.file_token}/download`,
+        const response = await this.makeRequest(
+          `https://open.feishu.cn/open-apis/drive/v1/medias/${attachment.file_token}/download`,
           {
             headers: { Authorization: `Bearer ${this.accessToken}` },
             responseType: 'arraybuffer',
@@ -185,14 +227,20 @@ export class FeishuReader {
 
   // 刷新访问令牌
   private async refreshAccessToken(): Promise<void> {
-    if (!this.client || !this.config) {
+    if (!this.config) {
       throw new Error('飞书未连接');
     }
 
-    const response = await this.client.post('/auth/v3/tenant_access_token/internal', {
-      app_id: this.config.appId,
-      app_secret: this.config.appSecret,
-    });
+    const response = await this.makeRequest(
+      'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal',
+      {
+        method: 'POST',
+        body: {
+          app_id: this.config.appId,
+          app_secret: this.config.appSecret,
+        },
+      }
+    );
 
     this.accessToken = response.data.tenant_access_token;
   }
@@ -202,7 +250,7 @@ export class FeishuReader {
     return this.fetchPendingRecords();
   }
 
-  async fetchRecordById(recordId: string): Promise<PublishTask> {
+  async fetchRecordById(_recordId: string): Promise<PublishTask> {
     throw new Error('Not implemented');
   }
 }

@@ -18,6 +18,11 @@
   color: #333;
 }
 
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
 .logs-header button {
   padding: 8px 16px;
   background-color: #1890ff;
@@ -36,6 +41,14 @@
 .logs-header button:disabled {
   background-color: #d9d9d9;
   cursor: not-allowed;
+}
+
+.btn-test {
+  background-color: #722ed1 !important;
+}
+
+.btn-test:hover {
+  background-color: #9254de !important;
 }
 
 .logs-filters {
@@ -159,10 +172,9 @@
 }
 
 .logs-table .message {
-  max-width: 400px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 300px;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .level-badge {

@@ -1,16 +1,28 @@
-import { XhsApiClient } from './XhsApiClient';
+import { PlaywrightPublisher } from './PlaywrightPublisher';
 import { PublishTask, XhsAccount, PublishResult } from '../../types';
 import { LoggerManager } from './LoggerManager';
 
 export class XhsPublishManager {
-  private apiClients: Map<string, XhsApiClient> = new Map();
   private loggerManager: LoggerManager;
-  private maxConcurrent: number = 3; // Max concurrent API requests
-  private activePublishes: number = 0;
-  private publishQueue: Array<{ task: PublishTask; account: XhsAccount; resolve: (result: PublishResult) => void; reject: (error: Error) => void }> = [];
+  private publisher: PlaywrightPublisher | null = null;
+  private isPublishing: boolean = false;
+  private publishQueue: Array<{
+    task: PublishTask;
+    account: XhsAccount;
+    resolve: (result: PublishResult) => void;
+    reject: (error: Error) => void;
+  }> = [];
+  private imageDir: string = '';
 
   constructor(loggerManager: LoggerManager) {
     this.loggerManager = loggerManager;
+  }
+
+  setImageDir(dir: string): void {
+    this.imageDir = dir;
+    if (this.publisher) {
+      this.publisher.setImageDir(dir);
+    }
   }
 
   async publish(task: PublishTask, account: XhsAccount): Promise<PublishResult> {
@@ -21,84 +33,71 @@ export class XhsPublishManager {
   }
 
   private async processQueue(): Promise<void> {
-    while (this.publishQueue.length > 0 && this.activePublishes < this.maxConcurrent) {
-      const item = this.publishQueue.shift();
-      if (!item) break;
-
-      this.activePublishes++;
-
-      try {
-        const result = await this.publishInternal(item.task, item.account);
-        item.resolve(result);
-      } catch (error) {
-        item.reject(error instanceof Error ? error : new Error('Unknown error'));
-      } finally {
-        this.activePublishes--;
-        this.processQueue();
-      }
+    if (this.isPublishing || this.publishQueue.length === 0) {
+      return;
     }
-  }
 
-  private async publishInternal(task: PublishTask, account: XhsAccount): Promise<PublishResult> {
-    let client = this.apiClients.get(account.id);
+    this.isPublishing = true;
 
     try {
-      // Create new API client if needed
-      if (!client) {
-        client = new XhsApiClient();
-        this.loggerManager.logTaskStatus(task.id, 'login', { accountId: account.id });
-        const loginSuccess = await client.login(account);
-        if (!loginSuccess) {
-          throw new Error('Failed to login to Xiaohongshu');
+      // 初始化 Playwright 发布器
+      if (!this.publisher) {
+        this.publisher = new PlaywrightPublisher();
+        if (this.imageDir) {
+          this.publisher.setImageDir(this.imageDir);
         }
-        this.apiClients.set(account.id, client);
+        await this.publisher.launch();
+        await this.publisher.openPublishPage();
       }
 
-      // Check if still logged in
-      const isLoggedIn = await client.checkLogin();
-      if (!isLoggedIn) {
-        this.loggerManager.logTaskStatus(task.id, 'login', { accountId: account.id });
-        const loginSuccess = await client.login(account);
-        if (!loginSuccess) {
-          throw new Error('Failed to login to Xiaohongshu');
-        }
-      }
+      while (this.publishQueue.length > 0) {
+        const item = this.publishQueue.shift();
+        if (!item) break;
 
-      // Publish
-      this.loggerManager.logTaskStatus(task.id, 'publishing', { accountId: account.id });
-      const result = await client.publish(task);
-
-      this.loggerManager.logPublishResult(task.id, result);
-      return result;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.loggerManager.logError(task.id, error instanceof Error ? error : new Error(errorMessage));
-
-      // Remove failed client
-      if (client) {
         try {
-          await client.logout();
-        } catch (e) {
-          console.error('Failed to logout:', e);
+          this.loggerManager.logTaskStatus(item.task.id, 'publishing');
+          const result = await this.publisher.publishContent(item.task);
+          this.loggerManager.logPublishResult(item.task.id, result);
+          item.resolve(result);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          this.loggerManager.logError(item.task.id, error instanceof Error ? error : new Error(errorMessage));
+          item.reject(error instanceof Error ? error : new Error(errorMessage));
         }
-        this.apiClients.delete(account.id);
-      }
 
-      throw error;
+        // 发布间隔
+        if (this.publishQueue.length > 0) {
+          await new Promise(resolve => setTimeout(resolve, 30000));
+        }
+      }
+    } catch (error) {
+      console.error('发布队列处理失败:', error);
+      // 清空队列，拒绝所有等待的任务
+      while (this.publishQueue.length > 0) {
+        const item = this.publishQueue.shift();
+        if (item) {
+          item.reject(error instanceof Error ? error : new Error('Publisher initialization failed'));
+        }
+      }
+    } finally {
+      this.isPublishing = false;
     }
   }
 
   async closeAll(): Promise<void> {
-    const promises = Array.from(this.apiClients.values()).map((client) => client.logout());
-    await Promise.all(promises);
-    this.apiClients.clear();
+    if (this.publisher) {
+      await this.publisher.close();
+      this.publisher = null;
+    }
+    this.publishQueue = [];
+    this.isPublishing = false;
   }
 
   getQueueSize(): number {
     return this.publishQueue.length;
   }
 
-  getActivePublishes(): number {
-    return this.activePublishes;
+  isActive(): boolean {
+    return this.isPublishing;
   }
 }

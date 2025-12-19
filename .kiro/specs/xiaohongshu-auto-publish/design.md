@@ -258,6 +258,35 @@ interface Log {
 }
 ```
 
+### WindowTableMapping（窗口表格映射）
+
+```typescript
+interface WindowTableMapping {
+  windowId: string              // 比特浏览器窗口 ID
+  windowName: string            // 窗口名称
+  feishuTableId: string         // 飞书表格 ID (Base ID)
+  feishuTableName?: string      // 表格备注名称（可选）
+}
+```
+
+### WindowPublishState（窗口发布状态）
+
+```typescript
+interface WindowPublishState {
+  windowId: string              // 窗口 ID
+  windowName: string            // 窗口名称
+  feishuTableId: string         // 对应的飞书表格 ID
+  tasks: PublishTask[]          // 该窗口的待发布任务
+  status: 'idle' | 'loading' | 'publishing' | 'paused' | 'completed' | 'error'
+  progress: {
+    total: number               // 总任务数
+    completed: number           // 已完成数
+    failed: number              // 失败数
+  }
+  errorMessage?: string         // 错误信息
+}
+```
+
 ## 正确性属性
 
 一个属性是一个特征或行为，应该在系统的所有有效执行中保持真实——本质上，这是关于系统应该做什么的正式陈述。属性充当人类可读的规范和机器可验证的正确性保证之间的桥梁。
@@ -329,6 +358,18 @@ interface Log {
 ### 属性 17：配置验证
 *对于任何*新配置，系统应该验证其有效性，只有有效的配置才能被保存。
 **验证需求：11.4**
+
+### 属性 18：窗口表格映射一致性
+*对于任何*配置的窗口-表格映射，系统应该确保每个窗口只对应一个飞书表格，且映射关系在发布过程中保持不变。
+**验证需求：12.1**
+
+### 属性 19：按窗口分组加载笔记
+*对于任何*已配置映射的窗口，系统应该从其对应的飞书表格加载笔记，且笔记只属于该窗口。
+**验证需求：12.2, 12.3**
+
+### 属性 20：窗口并行发布隔离
+*对于任何*多窗口并行发布，每个窗口应该只发布自己表格中的笔记，不会发布其他窗口的笔记。
+**验证需求：12.4**
 
 ## 错误处理
 

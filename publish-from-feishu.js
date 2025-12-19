@@ -7,6 +7,7 @@ const { chromium } = require('playwright');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
+const axios = require('axios');
 
 // ============ 配置区域 ============
 const CONFIG = {
@@ -64,16 +65,12 @@ let feishuTableId = null;
 async function getFeishuToken() {
   if (feishuToken) return feishuToken;
   
-  const response = await fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      app_id: CONFIG.feishu.appId,
-      app_secret: CONFIG.feishu.appSecret,
-    })
+  const response = await axios.post('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
+    app_id: CONFIG.feishu.appId,
+    app_secret: CONFIG.feishu.appSecret,
   });
   
-  const data = await response.json();
+  const data = response.data;
   if (data.code !== 0) {
     throw new Error(`获取飞书 Token 失败: ${data.msg}`);
   }
@@ -86,23 +83,13 @@ async function updateFeishuStatus(recordId, status) {
   try {
     const token = await getFeishuToken();
     
-    const response = await fetch(
+    const response = await axios.put(
       `https://open.feishu.cn/open-apis/bitable/v1/apps/${CONFIG.feishu.baseId}/tables/${feishuTableId}/records/${recordId}`,
-      {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fields: {
-            '状态': status
-          }
-        })
-      }
+      { fields: { '状态': status } },
+      { headers: { 'Authorization': `Bearer ${token}` } }
     );
     
-    const data = await response.json();
+    const data = response.data;
     if (data.code !== 0) {
       console.log('   ⚠️ 更新飞书状态失败: ' + data.msg);
       return false;
@@ -123,11 +110,11 @@ async function fetchFromFeishu() {
   console.log('✅ Token 获取成功');
   
   // 获取表格列表
-  const tableRes = await fetch(
+  const tableRes = await axios.get(
     `https://open.feishu.cn/open-apis/bitable/v1/apps/${CONFIG.feishu.baseId}/tables`,
     { headers: { 'Authorization': `Bearer ${token}` } }
   );
-  const tableData = await tableRes.json();
+  const tableData = tableRes.data;
   
   if (tableData.code !== 0) {
     throw new Error(`读取表格失败: ${tableData.msg}`);
@@ -137,11 +124,11 @@ async function fetchFromFeishu() {
   console.log(`✅ 找到表格: ${tableData.data.items[0].name}`);
   
   // 读取记录
-  const recordsRes = await fetch(
+  const recordsRes = await axios.get(
     `https://open.feishu.cn/open-apis/bitable/v1/apps/${CONFIG.feishu.baseId}/tables/${feishuTableId}/records`,
     { headers: { 'Authorization': `Bearer ${token}` } }
   );
-  const recordsData = await recordsRes.json();
+  const recordsData = recordsRes.data;
   
   if (recordsData.code !== 0) {
     throw new Error(`读取记录失败: ${recordsData.msg}`);
@@ -226,28 +213,78 @@ async function publishOne(page, task) {
     throw new Error('没有找到匹配的图片文件');
   }
   
-  // 打开发布页面
-  await page.goto(PUBLISH_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  // 打开发布页面（带重试）
+  let retries = 3;
+  while (retries > 0) {
+    try {
+      await page.goto(PUBLISH_URL, { waitUntil: 'networkidle', timeout: 60000 });
+      break;
+    } catch (e) {
+      retries--;
+      console.log(`   ⚠️ 页面加载失败，重试中... (${3 - retries}/3)`);
+      if (retries === 0) throw new Error('页面加载失败，请检查网络');
+      await page.waitForTimeout(3000);
+    }
+  }
   await page.waitForTimeout(2000);
   
   // 上传图片
   console.log('   上传图片...');
+  console.log('   图片路径: ' + images.join(', '));
+  
+  // 等待页面完全加载
+  await page.waitForTimeout(3000);
+  
+  // 查找文件上传 input
   const fileInput = await page.$('input[type="file"]');
   if (fileInput) {
+    // 检查文件是否存在
+    const fs = require('fs');
+    for (const img of images) {
+      if (!fs.existsSync(img)) {
+        throw new Error('图片文件不存在: ' + img);
+      }
+      console.log('   文件存在: ' + img);
+    }
+    
     await fileInput.setInputFiles(images);
+    console.log('   ✅ 图片已选择，等待上传...');
+    
+    // 等待图片上传完成（等待页面变化）
+    await page.waitForTimeout(8000);
     console.log('   ✅ 图片上传完成');
   } else {
-    throw new Error('找不到图片上传元素');
+    // 尝试点击上传按钮
+    console.log('   尝试点击上传按钮...');
+    const uploadBtn = await page.$('text=上传图片');
+    if (uploadBtn) {
+      await uploadBtn.click();
+      await page.waitForTimeout(1000);
+      const fileInput2 = await page.$('input[type="file"]');
+      if (fileInput2) {
+        await fileInput2.setInputFiles(images);
+        await page.waitForTimeout(8000);
+        console.log('   ✅ 图片上传完成');
+      } else {
+        throw new Error('找不到图片上传元素');
+      }
+    } else {
+      throw new Error('找不到图片上传元素');
+    }
   }
   
-  // 等待标题输入框出现（图片上传后自动跳转）
+  // 等待页面跳转到编辑页面
+  console.log('   等待页面跳转...');
+  await page.waitForTimeout(3000);
+  
+  // 等待标题输入框出现
   try {
-    await page.waitForSelector(SELECTORS.title, { timeout: 15000 });
+    await page.waitForSelector(SELECTORS.title, { timeout: 60000 });
     console.log('   ✅ 编辑页面已加载');
   } catch (e) {
-    console.log('   ⚠️ 等待编辑页面超时');
+    console.log('   ⚠️ 等待编辑页面超时，尝试继续...');
   }
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(2000);
   
   // 输入标题（超过20字自动截断）
   console.log('   输入标题...');
@@ -455,6 +492,12 @@ async function main() {
     channel: 'chrome',
     viewport: { width: 1280, height: 900 },
     locale: 'zh-CN',
+    args: [
+      '--disable-blink-features=AutomationControlled',
+      '--disable-infobars',
+      '--no-sandbox',
+    ],
+    ignoreDefaultArgs: ['--enable-automation'],
   });
   
   const page = await context.newPage();

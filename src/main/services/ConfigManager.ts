@@ -78,6 +78,15 @@ export class ConfigManager {
     return this.store.get('expiredTaskBehavior') || 'publish';
   }
 
+  // Image Directory
+  setImageDir(dir: string): void {
+    this.store.set('imageDir', dir);
+  }
+
+  getImageDir(): string {
+    return this.store.get('imageDir') || '';
+  }
+
   // Config Persistence
   saveConfig(): Promise<void> {
     return Promise.resolve();
@@ -87,12 +96,23 @@ export class ConfigManager {
     return Promise.resolve();
   }
 
+  // Window Table Mappings
+  setWindowTableMappings(mappings: any[]): void {
+    this.store.set('windowTableMappings', mappings);
+  }
+
+  getWindowTableMappings(): any[] {
+    return this.store.get('windowTableMappings') || [];
+  }
+
   getConfig(): Config {
     return {
       feishu: this.getFeishuConfig(),
       xhsAccounts: this.getXhsAccounts(),
       publishInterval: this.getPublishInterval(),
       expiredTaskBehavior: this.getExpiredTaskBehavior(),
+      imageDir: this.getImageDir(),
+      windowTableMappings: this.getWindowTableMappings(),
     };
   }
 
@@ -105,6 +125,12 @@ export class ConfigManager {
     }
     if (config.expiredTaskBehavior) {
       this.setExpiredTaskBehavior(config.expiredTaskBehavior);
+    }
+    if (config.imageDir !== undefined) {
+      this.setImageDir(config.imageDir);
+    }
+    if (config.windowTableMappings !== undefined) {
+      this.setWindowTableMappings(config.windowTableMappings);
     }
   }
 

@@ -20,6 +20,43 @@ export interface PublishTask {
   publishedTime?: Date;
   publishedUrl?: string;
   errorMessage?: string;
+  // 比特浏览器多账号支持
+  windowId?: string;      // 比特浏览器窗口 ID
+  windowName?: string;    // 窗口名称（用于显示）
+}
+
+// 比特浏览器窗口配置
+export interface BitBrowserWindow {
+  id: string;
+  name: string;
+  remark?: string;
+  groupId?: string;
+  groupName?: string;
+  feishuTableId?: string;  // 关联的飞书表格ID
+}
+
+// 窗口与飞书表格的映射配置
+export interface WindowTableMapping {
+  windowId: string;
+  windowName: string;
+  feishuTableId: string;
+  feishuTableName?: string;
+}
+
+// 窗口发布状态
+export interface WindowPublishState {
+  windowId: string;
+  windowName: string;
+  feishuTableId: string;
+  feishuTableName?: string;
+  tasks: PublishTask[];
+  status: 'idle' | 'loading' | 'publishing' | 'paused' | 'completed' | 'error';
+  progress: {
+    total: number;
+    completed: number;
+    failed: number;
+  };
+  errorMessage?: string;
 }
 
 // XHS Account
@@ -75,6 +112,14 @@ export interface ValidationResult {
   errors: string[];
 }
 
+// 比特浏览器配置
+export interface BitBrowserConfig {
+  apiUrl: string;           // API 地址，默认 http://127.0.0.1:54345
+  enabled: boolean;         // 是否启用比特浏览器
+  publishMode: 'serial' | 'parallel';  // 发布模式：串行/并行
+  maxConcurrent: number;    // 并行发布时的最大并发数
+}
+
 // Config
 export interface Config {
   feishu: FeishuConfig;
@@ -82,4 +127,6 @@ export interface Config {
   publishInterval: number;
   expiredTaskBehavior: 'publish' | 'skip';
   imageDir?: string;  // 本地图片目录路径
+  bitBrowser?: BitBrowserConfig;  // 比特浏览器配置
+  windowTableMappings?: WindowTableMapping[];  // 窗口与飞书表格的映射
 }

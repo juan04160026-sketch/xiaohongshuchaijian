@@ -57,6 +57,12 @@ export class PublishScheduler {
       throw error;
     }
 
+    // Set image directory
+    const imageDir = this.configManager.getImageDir();
+    if (imageDir) {
+      this.xhsPublishManager.setImageDir(imageDir);
+    }
+
     // Set publish interval
     const interval = this.configManager.getPublishInterval();
     this.publishingEngine.setInterval(interval);

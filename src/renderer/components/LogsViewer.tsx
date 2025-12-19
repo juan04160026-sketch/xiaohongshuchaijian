@@ -2,6 +2,66 @@ import React, { useState, useEffect } from 'react';
 import type { Log } from '../../types';
 import './LogsViewer.css';
 
+// 测试日志数据
+const TEST_LOGS: Log[] = [
+  {
+    id: 'log-001',
+    timestamp: new Date(),
+    taskId: 'test-001',
+    level: 'info',
+    message: '开始从飞书同步数据...',
+  },
+  {
+    id: 'log-002',
+    timestamp: new Date(Date.now() - 1000),
+    taskId: 'test-001',
+    level: 'info',
+    message: '成功获取 4 条待发布记录',
+  },
+  {
+    id: 'log-003',
+    timestamp: new Date(Date.now() - 2000),
+    taskId: 'test-002',
+    level: 'info',
+    message: '开始发布: 即梦AI绘画教程',
+  },
+  {
+    id: 'log-004',
+    timestamp: new Date(Date.now() - 3000),
+    taskId: 'test-002',
+    level: 'info',
+    message: '图片上传成功 (3张)',
+  },
+  {
+    id: 'log-005',
+    timestamp: new Date(Date.now() - 4000),
+    taskId: 'test-002',
+    level: 'info',
+    message: '发布成功！',
+  },
+  {
+    id: 'log-006',
+    timestamp: new Date(Date.now() - 5000),
+    taskId: 'test-003',
+    level: 'warn',
+    message: '标题超过20字，已自动截断',
+  },
+  {
+    id: 'log-007',
+    timestamp: new Date(Date.now() - 6000),
+    taskId: 'test-004',
+    level: 'error',
+    message: '发布失败: 找不到图片文件 test-product-004.png',
+  },
+  {
+    id: 'log-008',
+    timestamp: new Date(Date.now() - 7000),
+    taskId: 'system',
+    level: 'info',
+    message: '比特浏览器连接成功，找到 3 个窗口',
+  },
+];
+
 function LogsViewer(): JSX.Element {
   const [logs, setLogs] = useState<Log[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -41,6 +101,11 @@ function LogsViewer(): JSX.Element {
     }
   };
 
+  // 加载测试数据
+  const loadTestLogs = (): void => {
+    setLogs(TEST_LOGS);
+  };
+
   const filteredLogs = logs.filter((log) => {
     if (filterLevel !== 'all' && log.level !== filterLevel) {
       return false;
@@ -69,10 +134,15 @@ function LogsViewer(): JSX.Element {
   return (
     <div className="logs-viewer">
       <div className="logs-header">
-        <h2>日志查询</h2>
-        <button onClick={loadLogs} disabled={loading}>
-          {loading ? '加载中...' : '刷新'}
-        </button>
+        <h2>日志查询 ({logs.length})</h2>
+        <div className="header-actions">
+          <button className="btn-test" onClick={loadTestLogs}>
+            加载测试日志
+          </button>
+          <button onClick={loadLogs} disabled={loading}>
+            {loading ? '加载中...' : '刷新'}
+          </button>
+        </div>
       </div>
 
       <div className="logs-filters">
@@ -142,7 +212,7 @@ function LogsViewer(): JSX.Element {
                       </span>
                     </td>
                     <td className="task-id">{log.taskId}</td>
-                    <td className="message">{log.message}</td>
+                    <td className="message" title="">{log.message}</td>
                   </tr>
                 ))}
               </tbody>

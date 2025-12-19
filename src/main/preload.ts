@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('api', {
     start: () => ipcRenderer.invoke('tasks:start'),
     pause: () => ipcRenderer.invoke('tasks:pause'),
     resume: () => ipcRenderer.invoke('tasks:resume'),
+    stop: () => ipcRenderer.invoke('tasks:stop'),
   },
   logs: {
     get: (filter?: any) => ipcRenderer.invoke('logs:get', filter),
@@ -18,5 +19,23 @@ contextBridge.exposeInMainWorld('api', {
   },
   dialog: {
     selectDirectory: () => ipcRenderer.invoke('dialog:selectDirectory'),
+  },
+  // 比特浏览器 API
+  bitBrowser: {
+    getWindows: () => ipcRenderer.invoke('bitbrowser:getWindows'),
+    openWindow: (windowId: string) => ipcRenderer.invoke('bitbrowser:openWindow', windowId),
+    closeWindow: (windowId: string) => ipcRenderer.invoke('bitbrowser:closeWindow', windowId),
+  },
+  // 多账号发布 API
+  publish: {
+    multi: (tasks: any[], mode: 'serial' | 'parallel') => ipcRenderer.invoke('publish:multi', tasks, mode),
+    byWindows: (windowTasks: any[]) => ipcRenderer.invoke('publish:byWindows', windowTasks),
+    stop: () => ipcRenderer.invoke('publish:stop'),
+  },
+  // 飞书测试 API
+  feishu: {
+    test: (appId: string, appSecret: string, tableId: string) => 
+      ipcRenderer.invoke('feishu:test', appId, appSecret, tableId),
+    loadByWindows: () => ipcRenderer.invoke('feishu:loadByWindows'),
   },
 });
