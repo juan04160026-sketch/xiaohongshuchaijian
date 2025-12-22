@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import axios from 'axios';
 
 // 设置控制台编码为 UTF-8（Windows）
@@ -16,6 +17,7 @@ import { LoggerManager } from './services/LoggerManager';
 import { PublishScheduler } from './services/PublishScheduler';
 import { BitBrowserManager } from './services/BitBrowserManager';
 import { MultiAccountPublisher, PublishTaskWithAccount } from './services/MultiAccountPublisher';
+import { ChromePublisher } from './services/ChromePublisher';
 
 // 创建飞书 API 客户端
 const feishuClient = axios.create({
@@ -23,6 +25,40 @@ const feishuClient = axios.create({
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
 });
+
+// 飞书图片下载目录
+const feishuImageDir = path.join(os.homedir(), '.xhs-publisher', 'feishu-images');
+if (!fs.existsSync(feishuImageDir)) {
+  fs.mkdirSync(feishuImageDir, { recursive: true });
+}
+
+// 下载飞书附件图片
+async function downloadFeishuImage(fileToken: string, recordId: string, index: number, token: string): Promise<string | null> {
+  try {
+    const filePath = path.join(feishuImageDir, `${recordId}_${index}.png`);
+    
+    // 如果文件已存在，直接返回路径
+    if (fs.existsSync(filePath)) {
+      return filePath;
+    }
+    
+    const response = await axios.get(
+      `https://open.feishu.cn/open-apis/drive/v1/medias/${fileToken}/download`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'arraybuffer',
+        timeout: 60000,
+      }
+    );
+    
+    fs.writeFileSync(filePath, response.data);
+    console.log(`📥 下载飞书图片: ${filePath}`);
+    return filePath;
+  } catch (error) {
+    console.error(`下载飞书图片失败 (${fileToken}):`, error);
+    return null;
+  }
+}
 
 let mainWindow: BrowserWindow | null = null;
 let configManager: ConfigManager;
@@ -33,6 +69,7 @@ let loggerManager: LoggerManager;
 let publishScheduler: PublishScheduler;
 let bitBrowserManager: BitBrowserManager;
 let multiAccountPublisher: MultiAccountPublisher;
+let chromePublisher: ChromePublisher;
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -87,6 +124,9 @@ function initializeServices(): void {
   // 比特浏览器多账号支持
   bitBrowserManager = new BitBrowserManager();
   multiAccountPublisher = new MultiAccountPublisher();
+  
+  // 谷歌浏览器发布器
+  chromePublisher = new ChromePublisher();
 }
 
 function setupIPC(): void {
@@ -230,17 +270,27 @@ function setupIPC(): void {
   // 按窗口并行发布 - 每个窗口独立发布自己表格的笔记
   ipcMain.handle('publish:byWindows', async (_, windowTasks: { windowId: string; windowName: string; tasks: any[] }[]) => {
     try {
-      const imageDir = configManager.getImageDir();
-      if (imageDir) {
-        multiAccountPublisher.setImageDir(imageDir);
-      }
-      multiAccountPublisher.setPublishInterval(configManager.getPublishInterval());
+      const config = configManager.getConfig();
+      const browserType = config.browserType || 'bitbrowser';
+      const imageDir = config.imageDir;
+      const imageSource = config.imageSource || 'local';
+      const mappings = config.windowTableMappings || [];
+      
+      const browserName = browserType === 'chrome' ? '谷歌浏览器' : '比特浏览器';
+      const imageSourceName = imageSource === 'feishu' ? '飞书图片' : '本地合成图片';
+      console.log(`📌 使用浏览器类型: ${browserName}`);
+      console.log(`📌 图片来源: ${imageSourceName}`);
+      
+      // 记录开始发布日志
+      loggerManager.logTaskStatus('system', 'started', { 
+        message: `开始发布，使用${browserName}，图片来源: ${imageSourceName}`,
+        browserType,
+        imageSource,
+        totalTasks: windowTasks.reduce((sum, w) => sum + w.tasks.length, 0)
+      });
 
       // 获取飞书 Token 用于更新状态
-      const config = configManager.getConfig();
-      const mappings = config.windowTableMappings || [];
       let feishuToken = '';
-      
       try {
         const tokenRes = await feishuClient.post('/auth/v3/tenant_access_token/internal', {
           app_id: config.feishu.appId,
@@ -251,51 +301,157 @@ function setupIPC(): void {
         }
       } catch (e) {
         console.error('获取飞书Token失败，将无法更新状态');
+        loggerManager.logError('system', new Error('获取飞书Token失败，将无法更新状态'));
       }
 
-      // 并行发布每个窗口的任务
-      const publishPromises = windowTasks.map(async ({ windowId, windowName, tasks }) => {
-        const tasksWithAccount = tasks.map(task => ({
-          ...task,
-          windowId,
-          windowName,
-        }));
+      // 根据浏览器类型选择发布方式
+      if (browserType === 'chrome') {
+        // 使用谷歌浏览器 - 所有任务串行发布
+        if (imageDir) {
+          chromePublisher.setImageDir(imageDir);
+        }
+        chromePublisher.setPublishInterval(config.publishInterval);
+        chromePublisher.setImageSource(imageSource);
+        if (config.chrome) {
+          chromePublisher.setConfig(config.chrome);
+        }
+
+        const allTasks = windowTasks.flatMap(({ tasks }) => tasks);
         
-        // 每个窗口内串行发布
-        const results = await multiAccountPublisher.publishSerial(tasksWithAccount);
+        // 记录每个任务的开始
+        for (const task of allTasks) {
+          loggerManager.logTaskStatus(task.id, 'publishing', {
+            message: `开始发布: ${task.title}`,
+            title: task.title
+          });
+        }
         
-        // 发布完成后更新飞书状态
-        if (feishuToken) {
-          const mapping = mappings.find((m: any) => m.windowId === windowId);
-          if (mapping) {
-            for (const result of results) {
-              const task = tasks.find((t: any) => t.id === result.taskId);
-              if (task) {
-                await updateFeishuRecordStatus(
-                  mapping.feishuTableId,
-                  result.taskId,
-                  result.success ? '已发布' : '发布失败',
-                  feishuToken
-                );
+        const results = await chromePublisher.publishSerial(allTasks);
+
+        // 记录发布结果并更新飞书状态
+        for (const result of results) {
+          const task = allTasks.find(t => t.id === result.taskId);
+          loggerManager.logPublishResult(result.taskId, {
+            ...result,
+            title: task?.title,
+            message: result.success ? `发布成功: ${task?.title}` : `发布失败: ${result.errorMessage}`
+          });
+          
+          if (feishuToken) {
+            for (const { windowId, tasks } of windowTasks) {
+              const foundTask = tasks.find((t: any) => t.id === result.taskId);
+              if (foundTask) {
+                const mapping = mappings.find((m: any) => m.windowId === windowId);
+                if (mapping) {
+                  await updateFeishuRecordStatus(
+                    mapping.feishuTableId,
+                    result.taskId,
+                    result.success ? '已发布' : '发布失败',
+                    feishuToken
+                  );
+                }
+                break;
               }
             }
           }
         }
-        
-        return { windowId, windowName, results };
-      });
 
-      const allResults = await Promise.all(publishPromises);
-      return allResults;
+        return [{ windowId: 'chrome', windowName: '谷歌浏览器', results }];
+      } else {
+        // 使用比特浏览器 - 多窗口并行发布
+        if (imageDir) {
+          multiAccountPublisher.setImageDir(imageDir);
+        }
+        multiAccountPublisher.setPublishInterval(config.publishInterval);
+        multiAccountPublisher.setImageSource(imageSource);
+
+        // 并行发布每个窗口的任务
+        const publishPromises = windowTasks.map(async ({ windowId, windowName, tasks }) => {
+          // 记录窗口开始发布
+          loggerManager.logTaskStatus(windowId, 'window_started', {
+            message: `窗口 ${windowName} 开始发布 ${tasks.length} 条笔记`,
+            windowName,
+            taskCount: tasks.length
+          });
+          
+          const tasksWithAccount = tasks.map(task => ({
+            ...task,
+            windowId,
+            windowName,
+          }));
+          
+          // 记录每个任务开始
+          for (const task of tasks) {
+            loggerManager.logTaskStatus(task.id, 'publishing', {
+              message: `[${windowName}] 开始发布: ${task.title}`,
+              title: task.title,
+              windowName
+            });
+          }
+          
+          // 每个窗口内串行发布
+          const results = await multiAccountPublisher.publishSerial(tasksWithAccount);
+          
+          // 记录发布结果并更新飞书状态
+          if (feishuToken) {
+            const mapping = mappings.find((m: any) => m.windowId === windowId);
+            if (mapping) {
+              for (const result of results) {
+                const task = tasks.find((t: any) => t.id === result.taskId);
+                
+                // 记录发布结果
+                loggerManager.logPublishResult(result.taskId, {
+                  ...result,
+                  title: task?.title,
+                  windowName,
+                  message: result.success 
+                    ? `[${windowName}] 发布成功: ${task?.title}` 
+                    : `[${windowName}] 发布失败: ${result.errorMessage}`
+                });
+                
+                if (task) {
+                  await updateFeishuRecordStatus(
+                    mapping.feishuTableId,
+                    result.taskId,
+                    result.success ? '已发布' : '发布失败',
+                    feishuToken
+                  );
+                }
+              }
+            }
+          }
+          
+          return { windowId, windowName, results };
+        });
+
+        const allResults = await Promise.all(publishPromises);
+        
+        // 记录发布完成
+        const totalSuccess = allResults.reduce((sum, r) => sum + r.results.filter((x: any) => x.success).length, 0);
+        const totalFailed = allResults.reduce((sum, r) => sum + r.results.filter((x: any) => !x.success).length, 0);
+        loggerManager.logTaskStatus('system', 'completed', {
+          message: `发布完成，成功 ${totalSuccess} 条，失败 ${totalFailed} 条`,
+          totalSuccess,
+          totalFailed
+        });
+        
+        return allResults;
+      }
     } catch (error) {
       console.error('按窗口发布失败:', error);
+      loggerManager.logError('system', error as Error);
       throw error;
     }
   });
 
   ipcMain.handle('publish:stop', async () => {
     try {
-      await multiAccountPublisher.closeAll();
+      const browserType = configManager.getBrowserType();
+      if (browserType === 'chrome') {
+        await chromePublisher.close();
+      } else {
+        await multiAccountPublisher.closeAll();
+      }
       return { success: true };
     } catch (error) {
       console.error('停止发布失败:', error);
@@ -387,42 +543,62 @@ function setupIPC(): void {
         const records = recordsRes.data.data?.items || [];
         
         // 过滤待发布的记录并转换为任务
-        const pendingTasks = records
-          .filter((r: any) => {
-            const status = r.fields?.['状态'];
-            if (Array.isArray(status)) {
-              return status.some((s: any) => s.text === '待发布' || s === '待发布');
-            }
-            return status === '待发布';
-          })
-          .map((r: any) => {
-            const fields = r.fields || {};
-            
-            // 提取文本值的辅助函数
-            const getText = (field: any): string => {
-              if (!field) return '';
-              if (typeof field === 'string') return field;
-              if (Array.isArray(field)) {
-                return field.map((item: any) => item.text || item).join('');
-              }
-              return field.text || '';
-            };
+        const pendingRecords = records.filter((r: any) => {
+          const status = r.fields?.['状态'];
+          if (Array.isArray(status)) {
+            return status.some((s: any) => s.text === '待发布' || s === '待发布');
+          }
+          return status === '待发布';
+        });
 
-            return {
-              id: r.record_id,
-              title: getText(fields['小红书标题']) || getText(fields['标题']) || '无标题',
-              content: getText(fields['小红书文案']) || getText(fields['文案']) || '',
-              coverImage: getText(fields['小红书封面']) || '',
-              topic: getText(fields['主题']) || '',
-              status: 'pending' as const,
-              scheduledTime: fields['定时发布时间'] ? new Date(fields['定时发布时间']) : new Date(),
-              createdTime: fields['生成时间'] ? new Date(fields['生成时间']) : new Date(),
-              targetAccount: mapping.windowId,
-              productId: getText(fields['商品ID']) || '',
-              windowId: mapping.windowId,
-              windowName: mapping.windowName,
-            };
+        // 提取文本值的辅助函数
+        const getText = (field: any): string => {
+          if (!field) return '';
+          if (typeof field === 'string') return field;
+          if (Array.isArray(field)) {
+            return field.map((item: any) => item.text || item).join('');
+          }
+          return field.text || '';
+        };
+
+        // 处理每条记录，下载飞书图片
+        const pendingTasks = [];
+        for (const r of pendingRecords) {
+          const fields = r.fields || {};
+          
+          // 获取飞书图片附件
+          const coverField = fields['小红书封面'];
+          const feishuImages: string[] = [];
+          
+          if (Array.isArray(coverField)) {
+            for (let i = 0; i < coverField.length; i++) {
+              const attachment = coverField[i];
+              if (attachment && attachment.file_token) {
+                const imagePath = await downloadFeishuImage(attachment.file_token, r.record_id, i, token);
+                if (imagePath) {
+                  feishuImages.push(imagePath);
+                }
+              }
+            }
+          }
+
+          pendingTasks.push({
+            id: r.record_id,
+            title: getText(fields['小红书标题']) || getText(fields['标题']) || '无标题',
+            content: getText(fields['小红书文案']) || getText(fields['文案']) || '',
+            coverImage: feishuImages.length > 0 ? feishuImages[0] : '',
+            images: feishuImages,  // 飞书下载的图片路径
+            feishuImages,  // 专门存储飞书图片路径
+            topic: getText(fields['主题']) || '',
+            status: 'pending' as const,
+            scheduledTime: fields['定时发布时间'] ? new Date(fields['定时发布时间']) : new Date(),
+            createdTime: fields['生成时间'] ? new Date(fields['生成时间']) : new Date(),
+            targetAccount: mapping.windowId,
+            productId: getText(fields['商品ID']) || '',
+            windowId: mapping.windowId,
+            windowName: mapping.windowName,
           });
+        }
 
         windowState.tasks = pendingTasks;
         windowState.progress.total = pendingTasks.length;

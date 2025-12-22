@@ -348,27 +348,29 @@
 }
 
 /* 消息提示 */
-.message {
+.image-combiner .message {
   position: fixed;
   top: 20px;
   right: 20px;
-  padding: 12px 20px;
-  border-radius: 8px;
+  padding: 10px 16px;
+  border-radius: 6px;
   color: white;
-  font-weight: bold;
+  font-size: 13px;
+  font-weight: 500;
   z-index: 1000;
+  max-width: 300px;
   animation: slideIn 0.3s ease;
 }
 
-.message-info {
+.image-combiner .message-info {
   background: #333;
 }
 
-.message-success {
+.image-combiner .message-success {
   background: #4CAF50;
 }
 
-.message-error {
+.image-combiner .message-error {
   background: #f44336;
 }
 

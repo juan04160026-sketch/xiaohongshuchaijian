@@ -12,48 +12,58 @@ export class LoggerManager {
     this.loadLogs();
   }
 
-  logTaskStatus(taskId: string, status: string, metadata?: any): void {
+  // 添加通用日志方法
+  log(level: 'info' | 'warn' | 'error', taskId: string, message: string, metadata?: any): void {
     const log: Log = {
-      id: `log_${Date.now()}_${Math.random()}`,
+      id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       timestamp: new Date(),
       taskId,
-      level: 'info',
-      message: `Task status changed to ${status}`,
-      metadata: { status, ...metadata },
+      level,
+      message,
+      metadata,
     };
 
-    this.logs.push(log);
+    this.logs.unshift(log);  // 新日志放在前面
+    
+    // 限制日志数量，最多保留1000条
+    if (this.logs.length > 1000) {
+      this.logs = this.logs.slice(0, 1000);
+    }
+    
     this.saveLogs();
+  }
+
+  // 记录信息日志
+  info(taskId: string, message: string, metadata?: any): void {
+    this.log('info', taskId, message, metadata);
+  }
+
+  // 记录警告日志
+  warn(taskId: string, message: string, metadata?: any): void {
+    this.log('warn', taskId, message, metadata);
+  }
+
+  // 记录错误日志
+  error(taskId: string, message: string, metadata?: any): void {
+    this.log('error', taskId, message, metadata);
+  }
+
+  logTaskStatus(taskId: string, status: string, metadata?: any): void {
+    const message = metadata?.message || `任务状态变更: ${status}`;
+    const level = status === 'error' || status === 'failed' ? 'error' : 'info';
+    this.log(level, taskId, message, { status, ...metadata });
   }
 
   logPublishResult(taskId: string, result: any): void {
-    const log: Log = {
-      id: `log_${Date.now()}_${Math.random()}`,
-      timestamp: new Date(),
-      taskId,
-      level: result.success ? 'info' : 'warn',
-      message: result.success ? 'Publish successful' : 'Publish failed',
-      metadata: result,
-    };
-
-    this.logs.push(log);
-    this.saveLogs();
+    const message = result.message || (result.success ? '发布成功' : `发布失败: ${result.errorMessage}`);
+    const level = result.success ? 'info' : 'error';
+    this.log(level, taskId, message, result);
   }
 
   logError(taskId: string, error: Error): void {
-    const log: Log = {
-      id: `log_${Date.now()}_${Math.random()}`,
-      timestamp: new Date(),
-      taskId,
-      level: 'error',
-      message: error.message,
-      metadata: {
-        stack: error.stack,
-      },
-    };
-
-    this.logs.push(log);
-    this.saveLogs();
+    this.log('error', taskId, error.message, {
+      stack: error.stack,
+    });
   }
 
   getLogs(filter?: LogFilter): Log[] {

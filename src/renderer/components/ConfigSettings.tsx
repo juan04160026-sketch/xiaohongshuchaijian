@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import type { Config, BitBrowserWindow, WindowTableMapping } from '../../types';
+import { useState, useEffect } from 'react';
+import type { Config, BitBrowserWindow, WindowTableMapping, BrowserType } from '../../types';
 import './ConfigSettings.css';
 
 function ConfigSettings(): JSX.Element {
@@ -228,6 +228,40 @@ function ConfigSettings(): JSX.Element {
       {/* 图片和发布设置 */}
       <div className="config-section">
         <h3>发布设置</h3>
+        
+        {/* 浏览器类型选择 */}
+        <div className="form-row">
+          <div className="form-group">
+            <label>浏览器类型</label>
+            <div className="browser-selector">
+              <label className={`browser-option ${config.browserType === 'bitbrowser' || !config.browserType ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="browserType"
+                  value="bitbrowser"
+                  checked={config.browserType === 'bitbrowser' || !config.browserType}
+                  onChange={() => setConfig({ ...config, browserType: 'bitbrowser' as BrowserType })}
+                />
+                <span className="browser-icon">🌐</span>
+                <span className="browser-name">比特浏览器</span>
+                <span className="browser-desc">多账号并行发布</span>
+              </label>
+              <label className={`browser-option ${config.browserType === 'chrome' ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="browserType"
+                  value="chrome"
+                  checked={config.browserType === 'chrome'}
+                  onChange={() => setConfig({ ...config, browserType: 'chrome' as BrowserType })}
+                />
+                <span className="browser-icon">🔵</span>
+                <span className="browser-name">谷歌浏览器</span>
+                <span className="browser-desc">单账号串行发布</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
         <div className="form-row">
           <div className="form-group" style={{ flex: 2 }}>
             <label>本地图片目录</label>
@@ -279,7 +313,8 @@ function ConfigSettings(): JSX.Element {
         </div>
       </div>
 
-      {/* 比特浏览器窗口配置 */}
+      {/* 比特浏览器窗口配置 - 仅在选择比特浏览器时显示 */}
+      {(config.browserType === 'bitbrowser' || !config.browserType) && (
       <div className="config-section">
         <div className="section-header">
           <h3>比特浏览器窗口</h3>
@@ -322,6 +357,57 @@ function ConfigSettings(): JSX.Element {
           )}
         </div>
       </div>
+      )}
+
+      {/* 谷歌浏览器配置 - 仅在选择谷歌浏览器时显示 */}
+      {config.browserType === 'chrome' && (
+      <div className="config-section">
+        <h3>谷歌浏览器配置</h3>
+        <p className="help-text">使用本地 Chrome 浏览器发布，首次使用需要手动登录小红书</p>
+        <div className="form-row">
+          <div className="form-group">
+            <label>Chrome 路径（可选）</label>
+            <div className="input-with-button">
+              <input
+                type="text"
+                value={config.chrome?.executablePath || ''}
+                onChange={(e) =>
+                  setConfig({
+                    ...config,
+                    chrome: { ...config.chrome, executablePath: e.target.value },
+                  })
+                }
+                placeholder="留空自动检测"
+              />
+              <button
+                className="btn-browse"
+                onClick={async () => {
+                  try {
+                    const result = await (window as any).api.dialog.selectFile?.();
+                    if (result) {
+                      setConfig({ ...config, chrome: { ...config.chrome, executablePath: result } });
+                    }
+                  } catch (error) {
+                    console.error('选择文件失败:', error);
+                  }
+                }}
+              >
+                浏览
+              </button>
+            </div>
+            <p className="help-text">通常无需设置，程序会自动查找 Chrome</p>
+          </div>
+        </div>
+        <div className="chrome-info">
+          <p>💡 使用谷歌浏览器时：</p>
+          <ul>
+            <li>首次发布需要手动登录小红书账号</li>
+            <li>登录状态会自动保存，下次无需重新登录</li>
+            <li>所有任务将串行发布（一个接一个）</li>
+          </ul>
+        </div>
+      </div>
+      )}
 
       {/* 窗口与表格映射 */}
       <div className="config-section">

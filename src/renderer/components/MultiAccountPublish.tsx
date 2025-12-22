@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { WindowPublishState, WindowTableMapping } from '../../types';
+import type { WindowPublishState, WindowTableMapping, ImageSourceType } from '../../types';
 import './MultiAccountPublish.css';
 
 function MultiAccountPublish(): JSX.Element {
@@ -9,6 +9,7 @@ function MultiAccountPublish(): JSX.Element {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'info' | 'success' | 'warning' | 'error'>('info');
   const [loading, setLoading] = useState(false);
+  const [imageSource, setImageSource] = useState<ImageSourceType>('local');
 
   // 显示消息，自动消失
   const showMessage = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info', duration = 5000) => {
@@ -46,6 +47,7 @@ function MultiAccountPublish(): JSX.Element {
     try {
       const config = await (window as any).api.config.get();
       setMappings(config.windowTableMappings || []);
+      setImageSource(config.imageSource || 'local');
     } catch (error) {
       console.error('加载配置失败:', error);
     }
@@ -80,6 +82,19 @@ function MultiAccountPublish(): JSX.Element {
       showMessage('加载失败: ' + (error as Error).message, 'error', 0);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 切换图片来源
+  const handleImageSourceChange = async (source: ImageSourceType): Promise<void> => {
+    setImageSource(source);
+    try {
+      const config = await (window as any).api.config.get();
+      await (window as any).api.config.set({ ...config, imageSource: source });
+      await (window as any).api.config.save();
+      showMessage(`已切换为${source === 'feishu' ? '飞书图片' : '本地合成图片'}`, 'success');
+    } catch (error) {
+      console.error('保存配置失败:', error);
     }
   };
 
@@ -232,6 +247,39 @@ function MultiAccountPublish(): JSX.Element {
               已配置 {mappings.length} 个窗口 | 
               {windowsWithTasks > 0 ? ` ${windowsWithTasks} 个窗口有待发布内容` : ' 请点击加载笔记'}
             </span>
+          </div>
+
+          {/* 图片来源选择 */}
+          <div className="image-source-selector">
+            <span className="selector-label">图片来源：</span>
+            <div className="selector-options">
+              <label className={`option ${imageSource === 'local' ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="imageSource"
+                  value="local"
+                  checked={imageSource === 'local'}
+                  onChange={() => handleImageSourceChange('local')}
+                  disabled={isPublishing}
+                />
+                <span className="option-icon">📁</span>
+                <span className="option-text">本地合成图片</span>
+                <span className="option-desc">使用图文合成器生成的图片</span>
+              </label>
+              <label className={`option ${imageSource === 'feishu' ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="imageSource"
+                  value="feishu"
+                  checked={imageSource === 'feishu'}
+                  onChange={() => handleImageSourceChange('feishu')}
+                  disabled={isPublishing}
+                />
+                <span className="option-icon">📋</span>
+                <span className="option-text">飞书图片</span>
+                <span className="option-desc">使用飞书表格中的封面图片</span>
+              </label>
+            </div>
           </div>
 
           {/* 窗口列表 */}

@@ -112,12 +112,25 @@ export interface ValidationResult {
   errors: string[];
 }
 
+// 浏览器类型
+export type BrowserType = 'chrome' | 'bitbrowser';
+
+// 图片来源类型
+export type ImageSourceType = 'local' | 'feishu';
+
 // 比特浏览器配置
 export interface BitBrowserConfig {
   apiUrl: string;           // API 地址，默认 http://127.0.0.1:54345
   enabled: boolean;         // 是否启用比特浏览器
   publishMode: 'serial' | 'parallel';  // 发布模式：串行/并行
   maxConcurrent: number;    // 并行发布时的最大并发数
+}
+
+// 谷歌浏览器配置
+export interface ChromeConfig {
+  executablePath?: string;  // Chrome 可执行文件路径（可选，自动检测）
+  userDataDir?: string;     // 用户数据目录（用于保持登录状态）
+  headless?: boolean;       // 是否无头模式
 }
 
 // Config
@@ -127,6 +140,9 @@ export interface Config {
   publishInterval: number;
   expiredTaskBehavior: 'publish' | 'skip';
   imageDir?: string;  // 本地图片目录路径
+  browserType?: BrowserType;  // 浏览器类型：chrome 或 bitbrowser
+  imageSource?: ImageSourceType;  // 图片来源：local 本地合成 或 feishu 飞书图片
   bitBrowser?: BitBrowserConfig;  // 比特浏览器配置
+  chrome?: ChromeConfig;  // 谷歌浏览器配置
   windowTableMappings?: WindowTableMapping[];  // 窗口与飞书表格的映射
 }

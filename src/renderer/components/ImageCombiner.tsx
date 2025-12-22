@@ -52,7 +52,7 @@ function ImageCombiner(): JSX.Element {
   });
   const [iconName, setIconName] = useState('');
   
-  // 导出目录
+  // 导出目录（从系统设置读取）
   const [exportDir, setExportDir] = useState('');
   
   // 拖拽状态
@@ -72,8 +72,22 @@ function ImageCombiner(): JSX.Element {
   const [generateProgress, setGenerateProgress] = useState({ current: 0, total: 0 });
   
   // Canvas ref
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
+
+  // 组件加载时从系统设置读取图片目录
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const config = await (window as any).api.config.get();
+        if (config.imageDir) {
+          setExportDir(config.imageDir);
+        }
+      } catch (error) {
+        console.error('加载配置失败:', error);
+      }
+    };
+    loadConfig();
+  }, []);
 
   // 显示消息
   const showMessage = useCallback((msg: string, type: 'info' | 'success' | 'error' = 'info') => {
@@ -183,19 +197,6 @@ function ImageCombiner(): JSX.Element {
     showMessage('已删除', 'success');
   };
 
-  // 选择导出目录
-  const handleSelectExportDir = async () => {
-    try {
-      const dir = await (window as any).api.dialog.selectDirectory();
-      if (dir) {
-        setExportDir(dir);
-        showMessage('已选择导出目录', 'success');
-      }
-    } catch (error) {
-      showMessage('选择目录失败', 'error');
-    }
-  };
-
   // 重置位置
   const handleResetPosition = () => {
     setTextList(prev => prev.map((item, idx) => 
@@ -245,7 +246,7 @@ function ImageCombiner(): JSX.Element {
   }, [handleMouseMove, handleMouseUp]);
 
 
-  // 生成单张图片
+  // 生成单张图片 - 与原始HTML逻辑保持一致
   const generateSingleImage = async (item: TextItem): Promise<Blob | null> => {
     if (!backgroundImage) return null;
     
@@ -265,44 +266,45 @@ function ImageCombiner(): JSX.Element {
     canvas.height = bgImg.height;
     
     // 绘制背景
-    ctx.drawImage(bgImg, 0, 0);
+    ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
     
-    // 计算缩放比例
+    // 计算缩放比例（预览区域是 400x533）
     const scaleX = canvas.width / 400;
     const scaleY = canvas.height / 533;
     
-    // 设置文字样式
+    // 设置文字样式 - 使用用户设置的字体大小，按比例缩放
     const fontWeight = styleSettings.boldEnabled ? 'bold' : 'normal';
     const scaledFontSize = styleSettings.fontSize * scaleY;
     ctx.font = `${fontWeight} ${scaledFontSize}px ${styleSettings.fontFamily}`;
     ctx.textAlign = 'center';
     ctx.fillStyle = styleSettings.textColor;
     
-    // 计算文字位置
+    // 计算文字位置（考虑偏移）
     const x = (canvas.width / 2) + (item.offsetX * scaleX);
     const y = (canvas.height / 2) + (item.offsetY * scaleY);
     
-    // 绘制文字（支持多行）
+    // 绘制文字（支持多行）- 与原始HTML逻辑一致
     const lines = item.text.split('\n');
     const lineHeight = scaledFontSize * 1.2;
+    // 关键：使用原始HTML的居中计算方式
     const startY = y - (lines.length - 1) * lineHeight / 2;
     
     for (let i = 0; i < lines.length; i++) {
       const lineY = startY + i * lineHeight;
       
-      // 描边
+      // 如果有描边，先绘制描边
       if (styleSettings.strokeEnabled) {
         ctx.strokeStyle = styleSettings.strokeColor;
-        ctx.lineWidth = 4 * scaleY;
+        ctx.lineWidth = 4 * scaleY; // 描边宽度也要缩放
         ctx.strokeText(lines[i], x, lineY);
       }
       
-      // 文字
+      // 绘制文字
       ctx.fillStyle = styleSettings.textColor;
       ctx.fillText(lines[i], x, lineY);
     }
     
-    // 绘制图标
+    // 如果有装饰图标，绘制图标
     if (iconSettings.image) {
       const iconImg = new Image();
       iconImg.src = iconSettings.image;
@@ -416,7 +418,7 @@ function ImageCombiner(): JSX.Element {
                       className="preview-text"
                       style={{
                         fontFamily: styleSettings.fontFamily,
-                        fontSize: `${Math.min(styleSettings.fontSize, 56)}px`,
+                        fontSize: `${styleSettings.fontSize}px`,
                         color: styleSettings.textColor,
                         fontWeight: styleSettings.boldEnabled ? 'bold' : 'normal',
                         WebkitTextStroke: styleSettings.strokeEnabled 
@@ -729,14 +731,20 @@ function ImageCombiner(): JSX.Element {
             )}
           </div>
 
-          {/* 导出设置 */}
+          {/* 导出设置 - 使用系统设置的图片目录 */}
           <div className="section">
-            <h3 className="section-title">导出设置</h3>
-            <button className="btn btn-secondary" onClick={handleSelectExportDir}>
-              选择导出目录
-            </button>
-            {exportDir && (
-              <div className="export-path">已选择：{exportDir}</div>
+            <h3 className="section-title">导出目录</h3>
+            {exportDir ? (
+              <div className="export-path">
+                <span>📁 {exportDir}</span>
+                <p style={{ fontSize: '12px', color: '#999', marginTop: '5px' }}>
+                  (来自系统设置的图片目录)
+                </p>
+              </div>
+            ) : (
+              <div className="export-path" style={{ color: '#f44336' }}>
+                ⚠️ 请先在「系统设置」中配置图片目录
+              </div>
             )}
           </div>
 
@@ -765,7 +773,22 @@ function ImageCombiner(): JSX.Element {
 
       {/* 消息提示 */}
       {message && (
-        <div className={`message message-${messageType}`}>
+        <div 
+          className={`combiner-message combiner-message-${messageType}`}
+          style={{
+            position: 'fixed',
+            top: '20px',
+            right: '20px',
+            padding: '10px 16px',
+            borderRadius: '6px',
+            color: 'white',
+            fontSize: '13px',
+            fontWeight: 500,
+            zIndex: 9999,
+            maxWidth: '280px',
+            backgroundColor: messageType === 'success' ? '#4CAF50' : messageType === 'error' ? '#f44336' : '#333',
+          }}
+        >
           {message}
         </div>
       )}

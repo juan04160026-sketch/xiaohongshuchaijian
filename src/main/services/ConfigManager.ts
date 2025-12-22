@@ -1,6 +1,6 @@
 import Store from 'electron-store';
 import crypto from 'crypto';
-import { Config, FeishuConfig, XhsAccount } from '../../types';
+import { Config, FeishuConfig, XhsAccount, BrowserType, ChromeConfig, ImageSourceType } from '../../types';
 
 export class ConfigManager {
   private store: Store<Config>;
@@ -19,6 +19,7 @@ export class ConfigManager {
         xhsAccounts: [],
         publishInterval: 30,
         expiredTaskBehavior: 'publish',
+        browserType: 'bitbrowser',  // 默认使用比特浏览器
       },
     });
   }
@@ -105,6 +106,33 @@ export class ConfigManager {
     return this.store.get('windowTableMappings') || [];
   }
 
+  // Browser Type
+  setBrowserType(type: BrowserType): void {
+    this.store.set('browserType', type);
+  }
+
+  getBrowserType(): BrowserType {
+    return this.store.get('browserType') || 'bitbrowser';
+  }
+
+  // Chrome Config
+  setChromeConfig(config: ChromeConfig): void {
+    this.store.set('chrome', config);
+  }
+
+  getChromeConfig(): ChromeConfig {
+    return this.store.get('chrome') || {};
+  }
+
+  // Image Source
+  setImageSource(source: ImageSourceType): void {
+    this.store.set('imageSource', source);
+  }
+
+  getImageSource(): ImageSourceType {
+    return this.store.get('imageSource') || 'local';
+  }
+
   getConfig(): Config {
     return {
       feishu: this.getFeishuConfig(),
@@ -112,6 +140,9 @@ export class ConfigManager {
       publishInterval: this.getPublishInterval(),
       expiredTaskBehavior: this.getExpiredTaskBehavior(),
       imageDir: this.getImageDir(),
+      browserType: this.getBrowserType(),
+      imageSource: this.getImageSource(),
+      chrome: this.getChromeConfig(),
       windowTableMappings: this.getWindowTableMappings(),
     };
   }
@@ -128,6 +159,15 @@ export class ConfigManager {
     }
     if (config.imageDir !== undefined) {
       this.setImageDir(config.imageDir);
+    }
+    if (config.browserType !== undefined) {
+      this.setBrowserType(config.browserType);
+    }
+    if (config.imageSource !== undefined) {
+      this.setImageSource(config.imageSource);
+    }
+    if (config.chrome !== undefined) {
+      this.setChromeConfig(config.chrome);
     }
     if (config.windowTableMappings !== undefined) {
       this.setWindowTableMappings(config.windowTableMappings);

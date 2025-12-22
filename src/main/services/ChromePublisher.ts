@@ -1,8 +1,7 @@
-import { Page } from 'playwright';
+import { chromium, Browser, BrowserContext, Page } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
-import { BitBrowserManager, BitBrowserWindow } from './BitBrowserManager';
-import { PublishTask, PublishResult, ImageSourceType } from '../../types';
+import { PublishTask, PublishResult, ChromeConfig, ImageSourceType } from '../../types';
 
 // 发布页面 URL
 const PUBLISH_URL = 'https://creator.xiaohongshu.com/publish/publish?source=official&from=tab_switch&target=image';
@@ -17,25 +16,19 @@ const SELECTORS = {
 };
 
 /**
- * 发布任务（带账号信息）
+ * 谷歌浏览器发布器
+ * 使用本地 Chrome 浏览器进行发布
  */
-export interface PublishTaskWithAccount extends PublishTask {
-  windowId: string;     // 比特浏览器窗口 ID
-  windowName?: string;  // 窗口名称（用于显示）
-}
-
-/**
- * 多账号发布器
- * 支持使用比特浏览器的多个窗口同时发布
- */
-export class MultiAccountPublisher {
-  private bitBrowser: BitBrowserManager;
+export class ChromePublisher {
+  private browser: Browser | null = null;
+  private context: BrowserContext | null = null;
   private imageDir: string = '';
-  private publishInterval: number = 30000; // 同一账号发布间隔（毫秒）
-  private imageSource: ImageSourceType = 'local'; // 图片来源
+  private publishInterval: number = 30000;
+  private config: ChromeConfig = {};
+  private imageSource: ImageSourceType = 'local';
 
-  constructor() {
-    this.bitBrowser = new BitBrowserManager();
+  constructor(config?: ChromeConfig) {
+    this.config = config || {};
   }
 
   setImageDir(dir: string): void {
@@ -46,15 +39,83 @@ export class MultiAccountPublisher {
     this.publishInterval = seconds * 1000;
   }
 
+  setConfig(config: ChromeConfig): void {
+    this.config = config;
+  }
+
   setImageSource(source: ImageSourceType): void {
     this.imageSource = source;
   }
 
   /**
-   * 获取所有可用的浏览器窗口
+   * 获取 Chrome 可执行文件路径
    */
-  async getAvailableWindows(): Promise<BitBrowserWindow[]> {
-    return this.bitBrowser.getWindowList();
+  private getChromePath(): string | undefined {
+    if (this.config.executablePath) {
+      return this.config.executablePath;
+    }
+
+    // Windows 默认路径
+    if (process.platform === 'win32') {
+      const paths = [
+        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+        process.env.LOCALAPPDATA + '\\Google\\Chrome\\Application\\chrome.exe',
+      ];
+      for (const p of paths) {
+        if (fs.existsSync(p)) return p;
+      }
+    }
+
+    // macOS 默认路径
+    if (process.platform === 'darwin') {
+      const macPath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+      if (fs.existsSync(macPath)) return macPath;
+    }
+
+    return undefined;
+  }
+
+  /**
+   * 启动浏览器
+   */
+  async launch(): Promise<void> {
+    if (this.browser) return;
+
+    const chromePath = this.getChromePath();
+    console.log('Chrome 路径:', chromePath || '使用 Playwright 内置 Chromium');
+
+    this.browser = await chromium.launch({
+      headless: this.config.headless ?? false,
+      executablePath: chromePath,
+      args: ['--start-maximized'],
+    });
+
+    // 使用持久化上下文保持登录状态
+    const userDataDir = this.config.userDataDir || path.join(process.cwd(), '.chrome-data');
+    if (!fs.existsSync(userDataDir)) {
+      fs.mkdirSync(userDataDir, { recursive: true });
+    }
+
+    this.context = await this.browser.newContext({
+      viewport: null,
+      storageState: fs.existsSync(path.join(userDataDir, 'state.json'))
+        ? path.join(userDataDir, 'state.json')
+        : undefined,
+    });
+
+    console.log('✅ Chrome 浏览器已启动');
+  }
+
+  /**
+   * 保存登录状态
+   */
+  async saveState(): Promise<void> {
+    if (!this.context) return;
+    
+    const userDataDir = this.config.userDataDir || path.join(process.cwd(), '.chrome-data');
+    await this.context.storageState({ path: path.join(userDataDir, 'state.json') });
+    console.log('✅ 登录状态已保存');
   }
 
 
@@ -76,7 +137,6 @@ export class MultiAccountPublisher {
         matchedImages.push(path.join(this.imageDir, exactMatch));
       }
 
-      // 支持 商品ID_1.png 格式
       const pattern = new RegExp('^' + productId + '[_-]?\\d*\\' + ext + '$', 'i');
       for (const file of files) {
         if (pattern.test(file) && !matchedImages.some(img => img.endsWith(file))) {
@@ -89,17 +149,18 @@ export class MultiAccountPublisher {
   }
 
   /**
-   * 在指定窗口发布单条内容
+   * 发布单条内容
    */
-  async publishOne(task: PublishTaskWithAccount): Promise<PublishResult> {
+  async publishOne(task: PublishTask): Promise<PublishResult> {
     const startTime = Date.now();
-    console.log(`\n📤 [${task.windowName || task.windowId}] 发布: "${task.title}"`);
+    console.log(`\n📤 [Chrome] 发布: "${task.title}"`);
     console.log(`   图片来源: ${this.imageSource === 'feishu' ? '飞书图片' : '本地合成图片'}`);
 
     try {
-      // 打开浏览器窗口
-      const context = await this.bitBrowser.openWindow(task.windowId);
-      const page = await context.newPage();
+      await this.launch();
+      if (!this.context) throw new Error('浏览器未启动');
+
+      const page = await this.context.newPage();
 
       // 根据图片来源选择图片
       let images: string[] = [];
@@ -108,7 +169,6 @@ export class MultiAccountPublisher {
         // 使用飞书图片
         const feishuImages = (task as any).feishuImages || task.images || [];
         if (feishuImages.length > 0) {
-          // 过滤出存在的文件
           images = feishuImages.filter((img: string) => fs.existsSync(img));
         }
         if (images.length === 0) {
@@ -126,17 +186,24 @@ export class MultiAccountPublisher {
         console.log(`   使用本地图片: ${images.length} 张`);
       }
 
-      // 打开发布页面 - 使用 domcontentloaded 而不是 networkidle，避免超时
+      // 打开发布页面 - 使用 domcontentloaded 避免超时
       console.log('   正在打开发布页面...');
       await page.goto(PUBLISH_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
       
-      // 等待页面加载完成，检测上传按钮出现
+      // 等待页面加载
       console.log('   等待页面加载...');
       try {
         await page.waitForSelector('input[type="file"]', { timeout: 30000 });
       } catch (e) {
-        // 如果找不到上传按钮，可能需要等待更长时间
         await page.waitForTimeout(5000);
+      }
+
+      // 检查是否需要登录
+      const needLogin = await page.$('text=登录');
+      if (needLogin) {
+        console.log('   ⚠️ 需要登录，请在浏览器中完成登录...');
+        await page.waitForURL('**/publish/**', { timeout: 300000 }); // 等待5分钟
+        await this.saveState();
       }
 
       // 上传图片
@@ -145,13 +212,12 @@ export class MultiAccountPublisher {
       if (fileInput) {
         await fileInput.setInputFiles(images);
         
-        // 等待图片上传完成 - 检测上传进度或编辑区域出现
+        // 等待图片上传完成
         console.log('   等待图片上传...');
         let uploadComplete = false;
-        for (let i = 0; i < 30; i++) {  // 最多等待30秒
+        for (let i = 0; i < 30; i++) {
           await page.waitForTimeout(1000);
           
-          // 检查是否进入编辑页面（标题输入框出现）
           const titleInput = await page.$(SELECTORS.title);
           if (titleInput) {
             uploadComplete = true;
@@ -159,7 +225,6 @@ export class MultiAccountPublisher {
             break;
           }
           
-          // 检查是否有上传错误
           const errorMsg = await page.$('.upload-error, .error-message');
           if (errorMsg) {
             throw new Error('图片上传失败');
@@ -173,13 +238,12 @@ export class MultiAccountPublisher {
         throw new Error('找不到图片上传元素');
       }
 
-      // 额外等待确保页面稳定
       await page.waitForTimeout(2000);
 
-      // 输入标题（截断到20字）
+      // 输入标题
       await this.inputTitle(page, task.title);
 
-      // 输入正文（处理话题）
+      // 输入正文
       await this.inputContent(page, task.content);
 
       // 添加商品
@@ -195,6 +259,8 @@ export class MultiAccountPublisher {
         await page.waitForTimeout(5000);
       }
 
+      // 保存登录状态
+      await this.saveState();
       await page.close();
 
       const duration = Date.now() - startTime;
@@ -217,9 +283,8 @@ export class MultiAccountPublisher {
     }
   }
 
-
   /**
-   * 输入标题（超过20字自动截断）
+   * 输入标题
    */
   private async inputTitle(page: Page, title: string): Promise<void> {
     try {
@@ -245,7 +310,7 @@ export class MultiAccountPublisher {
   }
 
   /**
-   * 输入正文（智能处理话题标签）
+   * 输入正文
    */
   private async inputContent(page: Page, content: string): Promise<void> {
     try {
@@ -256,18 +321,15 @@ export class MultiAccountPublisher {
         await page.keyboard.press('Control+A');
         await page.keyboard.press('Delete');
 
-        // 解析正文，分离普通文本和话题标签
         const parts = content.split(/(#[^\s#\[]+)/g);
 
         for (const part of parts) {
           if (!part) continue;
 
           if (part.startsWith('#') && part.length > 1) {
-            // 话题标签
             await page.keyboard.type(part, { delay: 50 });
             await page.waitForTimeout(1500);
 
-            // 尝试选择下拉框
             const topicItem = await page.$(SELECTORS.topicItem);
             if (topicItem) {
               await topicItem.click();
@@ -276,7 +338,6 @@ export class MultiAccountPublisher {
             await page.waitForTimeout(500);
             await page.keyboard.type(' ', { delay: 50 });
           } else {
-            // 普通文本
             await page.keyboard.type(part, { delay: 10 });
           }
         }
@@ -322,37 +383,22 @@ export class MultiAccountPublisher {
     }
   }
 
-
   /**
-   * 串行发布 - 一个账号发完再发下一个
+   * 串行发布多条内容
    */
-  async publishSerial(tasks: PublishTaskWithAccount[]): Promise<PublishResult[]> {
+  async publishSerial(tasks: PublishTask[]): Promise<PublishResult[]> {
     const results: PublishResult[] = [];
 
-    // 按窗口分组
-    const tasksByWindow = new Map<string, PublishTaskWithAccount[]>();
-    for (const task of tasks) {
-      const windowTasks = tasksByWindow.get(task.windowId) || [];
-      windowTasks.push(task);
-      tasksByWindow.set(task.windowId, windowTasks);
-    }
+    for (let i = 0; i < tasks.length; i++) {
+      const task = tasks[i];
+      console.log(`[${i + 1}/${tasks.length}]`);
 
-    // 逐个窗口发布
-    for (const [windowId, windowTasks] of tasksByWindow) {
-      console.log(`\n========== 窗口: ${windowTasks[0].windowName || windowId} ==========`);
-      
-      for (let i = 0; i < windowTasks.length; i++) {
-        const task = windowTasks[i];
-        console.log(`[${i + 1}/${windowTasks.length}]`);
-        
-        const result = await this.publishOne(task);
-        results.push(result);
+      const result = await this.publishOne(task);
+      results.push(result);
 
-        // 同一窗口内的发布间隔
-        if (i < windowTasks.length - 1) {
-          console.log(`⏳ 等待 ${this.publishInterval / 1000} 秒...`);
-          await new Promise(resolve => setTimeout(resolve, this.publishInterval));
-        }
+      if (i < tasks.length - 1) {
+        console.log(`⏳ 等待 ${this.publishInterval / 1000} 秒...`);
+        await new Promise(resolve => setTimeout(resolve, this.publishInterval));
       }
     }
 
@@ -360,58 +406,18 @@ export class MultiAccountPublisher {
   }
 
   /**
-   * 并行发布 - 多个账号同时发布
+   * 关闭浏览器
    */
-  async publishParallel(tasks: PublishTaskWithAccount[], maxConcurrent: number = 3): Promise<PublishResult[]> {
-    const results: PublishResult[] = [];
-
-    // 按窗口分组
-    const tasksByWindow = new Map<string, PublishTaskWithAccount[]>();
-    for (const task of tasks) {
-      const windowTasks = tasksByWindow.get(task.windowId) || [];
-      windowTasks.push(task);
-      tasksByWindow.set(task.windowId, windowTasks);
+  async close(): Promise<void> {
+    if (this.context) {
+      await this.saveState();
+      await this.context.close();
+      this.context = null;
     }
-
-    // 创建每个窗口的发布队列
-    const windowQueues = Array.from(tasksByWindow.entries()).map(([_windowId, windowTasks]) => {
-      return async () => {
-        const windowResults: PublishResult[] = [];
-        for (let i = 0; i < windowTasks.length; i++) {
-          const task = windowTasks[i];
-          const result = await this.publishOne(task);
-          windowResults.push(result);
-
-          if (i < windowTasks.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, this.publishInterval));
-          }
-        }
-        return windowResults;
-      };
-    });
-
-    // 并行执行（限制并发数）
-    const executing: Promise<PublishResult[]>[] = [];
-    for (const queue of windowQueues) {
-      const p = queue().then(r => {
-        results.push(...r);
-        return r;
-      });
-      executing.push(p);
-
-      if (executing.length >= maxConcurrent) {
-        await Promise.race(executing);
-      }
+    if (this.browser) {
+      await this.browser.close();
+      this.browser = null;
     }
-
-    await Promise.all(executing);
-    return results;
-  }
-
-  /**
-   * 关闭所有浏览器窗口
-   */
-  async closeAll(): Promise<void> {
-    await this.bitBrowser.closeAll();
+    console.log('✅ Chrome 浏览器已关闭');
   }
 }
