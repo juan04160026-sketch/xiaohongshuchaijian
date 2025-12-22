@@ -38,4 +38,9 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('feishu:test', appId, appSecret, tableId),
     loadByWindows: () => ipcRenderer.invoke('feishu:loadByWindows'),
   },
+  // 文件操作 API
+  file: {
+    save: (dir: string, fileName: string, data: number[]) => 
+      ipcRenderer.invoke('file:save', dir, fileName, data),
+  },
 });

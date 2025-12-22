@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'path';
+import fs from 'fs';
 import axios from 'axios';
 
 // 设置控制台编码为 UTF-8（Windows）
@@ -527,6 +528,20 @@ function setupIPC(): void {
       console.error('飞书测试错误:', error);
       result.error = error.message || '网络请求失败，请检查网络连接';
       return result;
+    }
+  });
+
+  // 文件保存 IPC handler
+  ipcMain.handle('file:save', async (_, dir: string, fileName: string, data: number[]) => {
+    try {
+      const filePath = path.join(dir, fileName);
+      const buffer = Buffer.from(data);
+      fs.writeFileSync(filePath, buffer);
+      console.log(`✅ 文件已保存: ${filePath}`);
+      return { success: true, path: filePath };
+    } catch (error) {
+      console.error('保存文件失败:', error);
+      throw error;
     }
   });
 }

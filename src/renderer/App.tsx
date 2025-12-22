@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import './App.css';
 import MultiAccountPublish from './components/MultiAccountPublish';
 import ConfigSettings from './components/ConfigSettings';
 import LogsViewer from './components/LogsViewer';
+import ImageCombiner from './components/ImageCombiner';
 
-type TabType = 'config' | 'publish' | 'logs';
+type TabType = 'config' | 'combiner' | 'publish' | 'logs';
 
 function App(): JSX.Element {
   const [activeTab, setActiveTab] = useState<TabType>('config');
@@ -19,6 +20,12 @@ function App(): JSX.Element {
             onClick={() => setActiveTab('config')}
           >
             系统设置
+          </button>
+          <button
+            className={`nav-button ${activeTab === 'combiner' ? 'active' : ''}`}
+            onClick={() => setActiveTab('combiner')}
+          >
+            图文合成
           </button>
           <button
             className={`nav-button ${activeTab === 'publish' ? 'active' : ''}`}
@@ -37,6 +44,7 @@ function App(): JSX.Element {
 
       <main className="app-main">
         {activeTab === 'config' && <ConfigSettings />}
+        {activeTab === 'combiner' && <ImageCombiner />}
         {activeTab === 'publish' && <MultiAccountPublish />}
         {activeTab === 'logs' && <LogsViewer />}
       </main>

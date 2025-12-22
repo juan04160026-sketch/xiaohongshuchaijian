@@ -1,0 +1,2080 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小红书本地图文批量合成器</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #ff2442;
+            --secondary-color: #f5f5f5;
+            --border-color: #ddd;
+            --text-color: #333;
+            --light-gray: #f0f0f0;
+            --dark-gray: #666;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #fafafa;
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            font-size: 2rem;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+
+        .main-content {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 30px;
+            flex-direction: row-reverse; /* 左边预览，右边控制 */
+        }
+
+        /* 右侧控制区 */
+        .control-panel {
+            flex: 0 0 400px; /* 固定宽度 */
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .section {
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .section:last-child {
+            border-bottom: none;
+        }
+
+        .section-title {
+            font-size: 1rem;
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: var(--text-color);
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab.active {
+            border-bottom: 2px solid var(--primary-color);
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 15px;
+        }
+
+        .upload-area:hover {
+            border-color: var(--primary-color);
+            background-color: #fff5f5;
+        }
+
+        .upload-area p {
+            margin: 10px 0;
+            color: var(--dark-gray);
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 8px 16px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            text-align: center;
+            transition: background-color 0.3s;
+            font-size: 0.9rem;
+        }
+
+        .btn:hover:not(:disabled) {
+            background-color: #e01e37;
+        }
+
+        .btn:disabled {
+            background-color: var(--light-gray);
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background-color: var(--light-gray);
+            color: var(--text-color);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background-color: #e0e0e0;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        select, input[type="range"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        .range-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .range-value {
+            min-width: 50px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .position-controls {
+            display: flex;
+            gap: 15px;
+        }
+
+        .position-control {
+            flex: 1;
+        }
+
+        .batch-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        .counter {
+            font-weight: bold;
+            color: var(--dark-gray);
+        }
+
+        /* 左侧预览区 */
+        .preview-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 600px;
+        }
+
+        .preview-container {
+            width: 400px;
+            height: 533px; /* 3:4 比例 */
+            background-color: var(--secondary-color);
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+            position: relative;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .preview-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+        }
+
+        .preview-text-container {
+            position: relative;
+            z-index: 2;
+            padding: 16px;
+            max-width: 100%;
+            text-align: center;
+            cursor: move;
+            box-sizing: border-box;
+            width: 100%;
+        }
+
+        .preview-text-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.3);
+            z-index: -1;
+            border-radius: 8px;
+        }
+
+        .preview-text {
+            position: relative;
+            color: #000;
+            font-weight: bold;
+            word-wrap: break-word;
+            max-width: 100%;
+            box-sizing: border-box;
+            line-height: 1.2;
+            margin: 0 auto;
+            text-align: center;
+            padding: 0 10px;
+        }
+
+        .empty-preview {
+            color: var(--dark-gray);
+            text-align: center;
+            padding: 20px;
+        }
+
+        footer {
+            text-align: center;
+            color: var(--dark-gray);
+            font-size: 0.9rem;
+            margin-top: 30px;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            background-color: #333;
+            color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            transform: translateX(120%);
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+
+            .control-panel {
+                flex: 1;
+                max-width: 100%;
+            }
+
+            .preview-panel {
+                align-items: center;
+            }
+            
+            .preview-container {
+                width: 300px;
+                height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>小红书本地图文批量合成器</h1>
+        </header>
+
+        <div class="main-content">
+            <!-- 左侧操作区 -->
+            <div class="control-panel">
+                <!-- 背景图上传模块 -->
+                <div class="section">
+                    <h2 class="section-title">背景图上传</h2>
+                    <div class="upload-area" id="imageUploadArea">
+                        <p>点击或拖拽图片到此处</p>
+                        <p>支持 JPG/PNG/WEBP，最大 10MB</p>
+                    </div>
+                    <input type="file" id="imageInput" accept="image/*">
+                    <div id="imageFileName" style="margin-top: 10px; font-size: 0.85rem; color: #666; display: none;">
+                        已选择：<span id="imageFileNameText"></span>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 15px;">
+                        <button class="btn" id="uploadImageBtn">选择背景图</button>
+                        <button class="btn btn-secondary" id="resetImageBtn" disabled>重新上传</button>
+                    </div>
+                </div>
+
+                <!-- 文字输入模块 -->
+                <div class="section">
+                    <h2 class="section-title">文字输入</h2>
+                    <div class="tabs">
+                        <div class="tab active" data-tab="excel">Excel 导入</div>
+                        <div class="tab" data-tab="manual">手动添加</div>
+                    </div>
+
+                    <!-- Excel 导入标签页 -->
+                    <div class="tab-content active" id="excelTab">
+                        <div class="upload-area" id="excelUploadArea">
+                            <p>点击或拖拽 Excel 文件到此处</p>
+                            <p>支持 .xlsx/.xls，最大 5MB</p>
+                        </div>
+                        <input type="file" id="excelInput" accept=".xlsx,.xls">
+                        <div id="excelSuccessMsg" style="margin-top: 10px; padding: 8px; background: #e8f5e9; color: #2e7d32; border-radius: 6px; font-size: 0.85rem; display: none;">
+                            ✔ 成功导入 <span id="excelCount">0</span> 条数据！
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-top: 15px;">
+                            <button class="btn" id="uploadExcelBtn">上传 Excel 文件</button>
+                            <button class="btn btn-secondary" id="resetExcelBtn" disabled>重新导入</button>
+                            <button class="btn btn-secondary" id="clearListBtn" disabled>清空列表</button>
+                        </div>
+                    </div>
+
+                    <!-- 手动添加标签页 -->
+                    <div class="tab-content" id="manualTab">
+                        <div class="form-group">
+                            <textarea id="manualInput" placeholder="输入文案（最多 3 行，每行不超过 20 字）"></textarea>
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-top: 10px;">
+                            <button class="btn" id="addToListBtn">添加到列表</button>
+                            <button class="btn btn-secondary" id="editTextBtn" disabled>编辑选中文字</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 批量切换模块 -->
+                <div class="section">
+                    <div class="batch-controls">
+                        <button class="btn" id="prevBtn" disabled>上一条</button>
+                        <div class="counter">当前第 <span id="currentCount">0</span> 条 / 共 <span id="totalCount">0</span> 条</div>
+                        <button class="btn" id="nextBtn" disabled>下一条</button>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 10px;">
+                        <button class="btn btn-secondary" id="deleteTextBtn" disabled style="flex: 1;">删除当前文字</button>
+                    </div>
+                    
+                    <!-- 标题编辑区域 -->
+                    <div id="titleEditArea" style="margin-top: 15px; display: none;">
+                        <div style="background: #f5f5f5; padding: 10px; border-radius: 8px;">
+                            <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; color: #333;">
+                                📋 标题编辑<span id="titleEditNumber" style="margin-left: 5px;"></span>
+                            </div>
+                            <div class="form-group">
+                                <label>标题内容：</label>
+                                <textarea id="titleContent" style="background: white; min-height: 60px; resize: vertical;"></textarea>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label>ID值：</label>
+                                <input type="text" id="titleId" readonly style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; background: white;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 预览标题切换 -->
+                <div class="section">
+                    <h2 class="section-title">🔄 预览标题切换</h2>
+                    <div class="form-group">
+                        <label>当前预览：</label>
+                        <select id="previewSelect" style="width: 100%;">
+                            <option value="">请先导入数据</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 导出设置 -->
+                <div class="section">
+                    <h2 class="section-title">📁 导出设置</h2>
+                    <div id="folderNotSelected" style="margin-bottom: 10px; color: #666; font-size: 0.85rem;">
+                        未选择文件夹
+                    </div>
+                    <button class="btn btn-secondary" id="selectFolderBtn" style="width: 100%;">
+                        选择导出文件夹
+                    </button>
+                    <div id="folderPath" style="margin-top: 10px; font-size: 0.85rem; color: #666; display: none;">
+                        已选择：<span id="folderPathText"></span>
+                    </div>
+                </div>
+
+                <!-- 文字样式调整模块 -->
+                <div class="section">
+                    <h2 class="section-title">文字样式</h2>
+                    
+                    <!-- 标题字体 -->
+                    <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                        <label style="margin: 0; min-width: 80px;">标题字体:</label>
+                        <select id="fontSelect" style="flex: 1; padding: 6px;">
+                            <option value="'Source Han Sans', 'Noto Sans CJK', sans-serif">思源黑体</option>
+                            <option value="'Microsoft YaHei', sans-serif" selected>微软雅黑</option>
+                            <option value="'PingFang SC', sans-serif">苹方</option>
+                            <option value="'Alibaba PuHuiTi', sans-serif">阿里巴巴普惠体</option>
+                            <option value="'SimSun', serif">宋体</option>
+                            <option value="'Source Han Serif CN', serif">思源宋体-细体</option>
+                            <option value="'Ziyou Dict Black', sans-serif">字由点字典黑</option>
+                            <option value="'KEHUAWEIJINGKUIBEN-JIAN', sans-serif">可画五经魁本-简</option>
+                            <option value="'KEHUASILIUNIAN-JIAN', sans-serif">可画似流年-简</option>
+                            <option value="'KEHUAXIAKEHANG-JIAN', sans-serif">可画侠客行-简</option>
+                            <option value="'KEHUAQIAOPIHEI-JIAN', sans-serif">可画俏皮黑-简</option>
+                            <option value="'KEHUAQUANFUSHOUSU-JIAN', sans-serif">可画全福手书-简</option>
+                            <option value="'KEHUADIANYAHEI-JIAN', sans-serif">可画典雅黑-简</option>
+                            <option value="'KEHUAFACOOTI-JIAN', sans-serif">可画发酷体-简</option>
+                            <option value="'KEHUALINGYUNZHI-JIAN', sans-serif">可画凌云志-简</option>
+                            <option value="'KEHUALINGXIAOTI-JIAN', sans-serif">可画凌霄体-简</option>
+                            <option value="'KEHUADAOJIANRUMENG', sans-serif">可画刀剑如梦</option>
+                            <option value="'KEHUALIBEI-JIAN', sans-serif">可画力碑-简</option>
+                        </select>
+                        <input type="color" id="textColorPicker" value="#000000" style="width: 40px; height: 35px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">
+                    </div>
+
+                    <!-- 大小 -->
+                    <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                        <label style="margin: 0; min-width: 80px;">大小:</label>
+                        <input type="number" id="fontSizeInput" min="12" max="200" value="56" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 6px;">
+                    </div>
+
+                    <!-- 描边 -->
+                    <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                        <label style="margin: 0; min-width: 80px;">描边:</label>
+                        <input type="checkbox" id="strokeToggle" style="width: 20px; height: 20px; cursor: pointer;">
+                        <input type="color" id="strokeColorPicker" value="#ff0000" style="width: 40px; height: 35px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">
+                    </div>
+
+                    <!-- 加粗 -->
+                    <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                        <label style="margin: 0; min-width: 80px;">加粗:</label>
+                        <input type="checkbox" id="boldToggle" checked style="width: 20px; height: 20px; cursor: pointer;">
+                    </div>
+
+                    <!-- 位置X -->
+                    <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                        <label style="margin: 0; min-width: 80px;">位置X:</label>
+                        <input type="number" id="positionXInput" min="-500" max="500" value="0" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 6px;">
+                    </div>
+
+                    <!-- 位置Y -->
+                    <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                        <label style="margin: 0; min-width: 80px;">位置Y:</label>
+                        <input type="number" id="positionYInput" min="-500" max="500" value="0" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 6px;">
+                    </div>
+                    
+                    <button class="btn btn-secondary" id="resetPositionBtn" style="width: 100%; margin-top: 10px;">重置位置</button>
+                </div>
+
+                <!-- 装饰图标模块 -->
+                <div class="section">
+                    <h2 class="section-title">🎉 装饰图标</h2>
+                    
+                    <!-- 图标上传 -->
+                    <div class="form-group">
+                        <label>图标图片：</label>
+                        <input type="file" id="iconInput" accept="image/*" style="display: none;">
+                        <button class="btn btn-secondary" id="uploadIconBtn" style="width: 100%;">上传图标</button>
+                        <div id="iconFileName" style="margin-top: 8px; font-size: 0.85rem; color: #666; display: none;">
+                            已选择：<span id="iconFileNameText"></span>
+                        </div>
+                    </div>
+                    
+                    <!-- 图标尺寸 -->
+                    <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                        <label style="margin: 0; min-width: 80px;">图标大小:</label>
+                        <input type="number" id="iconSizeInput" min="20" max="200" value="80" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 6px;">
+                    </div>
+                    
+                    <!-- 图标位置X -->
+                    <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                        <label style="margin: 0; min-width: 80px;">图标X:</label>
+                        <input type="number" id="iconXInput" min="-500" max="500" value="-120" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 6px;">
+                    </div>
+                    
+                    <!-- 图标位置Y -->
+                    <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                        <label style="margin: 0; min-width: 80px;">图标Y:</label>
+                        <input type="number" id="iconYInput" min="-500" max="500" value="-100" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 6px;">
+                    </div>
+                    
+                    <button class="btn btn-secondary" id="removeIconBtn" disabled style="width: 100%; margin-top: 10px;">移除图标</button>
+                </div>
+
+                <!-- 文字下划色块模块 -->
+                <!-- 色块功能已移除 -->
+
+                <!-- 操作按钮 -->
+                <div class="section">
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn" id="previewBtn" style="flex: 1; background-color: #2196F3;">
+                            👁️ 预览
+                        </button>
+                        <button class="btn" id="generateBtn" disabled style="flex: 1; background-color: #4CAF50;">
+                            🎨 生成
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 左侧预览区 -->
+            <div class="preview-panel">
+                <div class="preview-container" id="previewContainer">
+                    <div class="empty-preview" id="emptyPreview">请先上传背景图</div>
+                </div>
+                <p>拖动文字可调整位置</p>
+            </div>
+        </div>
+
+        <!-- 底部状态栏 -->
+        <div id="statusBar" style="background: #f5f5f5; padding: 12px 20px; border-radius: 8px; margin-top: 20px; text-align: center; font-size: 0.9rem; color: #666; display: none;">
+            <strong>当前设置：</strong>
+            <span id="statusText">预览第 1 张图片 - 显示标题6</span>
+        </div>
+
+        <footer>
+            本地运行・无需联网 | 支持 Excel 第二列导入 | 调整完成后截图保存
+        </footer>
+    </div>
+
+    <div class="notification" id="notification"></div>
+
+    <script>
+        // 全局变量
+        let backgroundImage = null;
+        let backgroundImageName = ''; // 背景图文件名
+        let decorativeIcon = null; // 装饰图标
+        let decorativeIconName = ''; // 图标文件名
+        let textList = [];
+        let idList = []; // 存僭ID列表（对应Excel的A列）
+        let currentIndex = 0;
+        let previewIndex = 0; // 预览索引（可以与编辑索引不同）
+        let exportFolder = ''; // 导出文件夹路径
+        let exportFolderHandle = null; // 文件夹句柄（用于 File System Access API）
+        let offsetX = 0;
+        let offsetY = 0;
+        let isDragging = false;
+        let dragStartX, dragStartY;
+        // 为每个文字项存储独立的偏移量
+        let textOffsets = [];
+
+        // DOM 元素
+        const elements = {
+            imageUploadArea: document.getElementById('imageUploadArea'),
+            imageInput: document.getElementById('imageInput'),
+            uploadImageBtn: document.getElementById('uploadImageBtn'),
+            resetImageBtn: document.getElementById('resetImageBtn'),
+            imageFileName: document.getElementById('imageFileName'),
+            imageFileNameText: document.getElementById('imageFileNameText'),
+            excelUploadArea: document.getElementById('excelUploadArea'),
+            excelInput: document.getElementById('excelInput'),
+            uploadExcelBtn: document.getElementById('uploadExcelBtn'),
+            resetExcelBtn: document.getElementById('resetExcelBtn'),
+            clearListBtn: document.getElementById('clearListBtn'),
+            excelSuccessMsg: document.getElementById('excelSuccessMsg'),
+            excelCount: document.getElementById('excelCount'),
+            manualInput: document.getElementById('manualInput'),
+            addToListBtn: document.getElementById('addToListBtn'),
+            editTextBtn: document.getElementById('editTextBtn'),
+            deleteTextBtn: document.getElementById('deleteTextBtn'),
+            titleEditArea: document.getElementById('titleEditArea'),
+            titleEditNumber: document.getElementById('titleEditNumber'),
+            titleContent: document.getElementById('titleContent'),
+            titleId: document.getElementById('titleId'),
+            previewSelect: document.getElementById('previewSelect'),
+            selectFolderBtn: document.getElementById('selectFolderBtn'),
+            folderNotSelected: document.getElementById('folderNotSelected'),
+            folderPath: document.getElementById('folderPath'),
+            folderPathText: document.getElementById('folderPathText'),
+            previewBtn: document.getElementById('previewBtn'),
+            generateBtn: document.getElementById('generateBtn'),
+            statusBar: document.getElementById('statusBar'),
+            statusText: document.getElementById('statusText'),
+            tabs: document.querySelectorAll('.tab'),
+            tabContents: document.querySelectorAll('.tab-content'),
+            fontSelect: document.getElementById('fontSelect'),
+            fontSizeInput: document.getElementById('fontSizeInput'),
+            textColorPicker: document.getElementById('textColorPicker'),
+            strokeToggle: document.getElementById('strokeToggle'),
+            strokeColorPicker: document.getElementById('strokeColorPicker'),
+            boldToggle: document.getElementById('boldToggle'),
+            positionXInput: document.getElementById('positionXInput'),
+            positionYInput: document.getElementById('positionYInput'),
+            resetPositionBtn: document.getElementById('resetPositionBtn'),
+            iconInput: document.getElementById('iconInput'),
+            uploadIconBtn: document.getElementById('uploadIconBtn'),
+            removeIconBtn: document.getElementById('removeIconBtn'),
+            iconFileName: document.getElementById('iconFileName'),
+            iconFileNameText: document.getElementById('iconFileNameText'),
+            iconSizeInput: document.getElementById('iconSizeInput'),
+            iconXInput: document.getElementById('iconXInput'),
+            iconYInput: document.getElementById('iconYInput'),
+            // 色块功能已移除
+            prevBtn: document.getElementById('prevBtn'),
+            nextBtn: document.getElementById('nextBtn'),
+            currentCount: document.getElementById('currentCount'),
+            totalCount: document.getElementById('totalCount'),
+            previewContainer: document.getElementById('previewContainer'),
+            emptyPreview: document.getElementById('emptyPreview'),
+            notification: document.getElementById('notification')
+        };
+
+        // 初始化应用
+        function initApp() {
+            bindEvents();
+            updateBatchControls();
+        }
+
+        // 绑定事件
+        function bindEvents() {
+            // 背景图上传
+            elements.uploadImageBtn.addEventListener('click', () => elements.imageInput.click());
+            elements.imageInput.addEventListener('change', handleImageUpload);
+            elements.resetImageBtn.addEventListener('click', resetBackgroundImage);
+            
+            // 点击上传区域也能触发文件选择
+            elements.imageUploadArea.addEventListener('click', () => elements.imageInput.click());
+            
+            // 拖拽上传背景图
+            elements.imageUploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                elements.imageUploadArea.style.borderColor = '#ff2442';
+                elements.imageUploadArea.style.backgroundColor = '#fff5f5';
+            });
+            
+            elements.imageUploadArea.addEventListener('dragleave', () => {
+                elements.imageUploadArea.style.borderColor = '#ddd';
+                elements.imageUploadArea.style.backgroundColor = '';
+            });
+            
+            elements.imageUploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                elements.imageUploadArea.style.borderColor = '#ddd';
+                elements.imageUploadArea.style.backgroundColor = '';
+                
+                if (e.dataTransfer.files.length) {
+                    elements.imageInput.files = e.dataTransfer.files;
+                    handleImageUpload();
+                }
+            });
+
+            // Excel 导入
+            elements.uploadExcelBtn.addEventListener('click', () => elements.excelInput.click());
+            elements.excelInput.addEventListener('change', handleExcelUpload);
+            elements.resetExcelBtn.addEventListener('click', resetExcelImport);
+            elements.clearListBtn.addEventListener('click', clearTextList);
+            
+            // 点击Excel上传区域也能触发文件选择
+            elements.excelUploadArea.addEventListener('click', () => elements.excelInput.click());
+            
+            // 拖拽上传 Excel
+            elements.excelUploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                elements.excelUploadArea.style.borderColor = '#ff2442';
+                elements.excelUploadArea.style.backgroundColor = '#fff5f5';
+            });
+            
+            elements.excelUploadArea.addEventListener('dragleave', () => {
+                elements.excelUploadArea.style.borderColor = '#ddd';
+                elements.excelUploadArea.style.backgroundColor = '';
+            });
+            
+            elements.excelUploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                elements.excelUploadArea.style.borderColor = '#ddd';
+                elements.excelUploadArea.style.backgroundColor = '';
+                
+                if (e.dataTransfer.files.length) {
+                    elements.excelInput.files = e.dataTransfer.files;
+                    handleExcelUpload();
+                }
+            });
+
+            // 手动输入
+            elements.addToListBtn.addEventListener('click', addManualTextToList);
+            elements.editTextBtn.addEventListener('click', editCurrentText);
+            // 实时预览：监听输入框的内容变化
+            elements.manualInput.addEventListener('input', handleManualInputChange);
+
+            // 标签页切换
+            elements.tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabName = tab.getAttribute('data-tab');
+                    switchTab(tabName);
+                });
+            });
+
+            // 文字样式调整
+            elements.fontSelect.addEventListener('change', updatePreviewRealtime);
+            elements.fontSizeInput.addEventListener('input', updatePreviewRealtime);
+            elements.textColorPicker.addEventListener('input', updatePreviewRealtime);
+            elements.strokeToggle.addEventListener('change', updatePreviewRealtime);
+            elements.strokeColorPicker.addEventListener('input', updatePreviewRealtime);
+            elements.boldToggle.addEventListener('change', updatePreviewRealtime);
+
+            // 位置调整
+            elements.positionXInput.addEventListener('input', () => {
+                offsetX = parseInt(elements.positionXInput.value) || 0;
+                // 同步更新列表项的偏移量
+                if (textList.length > 0 && textOffsets[currentIndex]) {
+                    textOffsets[currentIndex].x = offsetX;
+                }
+                // 实时更新预览
+                updatePreviewRealtime();
+            });
+            
+            elements.positionYInput.addEventListener('input', () => {
+                offsetY = parseInt(elements.positionYInput.value) || 0;
+                // 同步更新列表项的偏移量
+                if (textList.length > 0 && textOffsets[currentIndex]) {
+                    textOffsets[currentIndex].y = offsetY;
+                }
+                // 实时更新预览
+                updatePreviewRealtime();
+            });
+            
+            elements.resetPositionBtn.addEventListener('click', resetPosition);
+
+            // 装饰图标
+            elements.uploadIconBtn.addEventListener('click', () => elements.iconInput.click());
+            elements.iconInput.addEventListener('change', handleIconUpload);
+            elements.removeIconBtn.addEventListener('click', removeIcon);
+            elements.iconSizeInput.addEventListener('input', updatePreviewRealtime);
+            elements.iconXInput.addEventListener('input', updatePreviewRealtime);
+            elements.iconYInput.addEventListener('input', updatePreviewRealtime);
+            
+            // 文字下划色块
+            // 色块功能已移除
+
+            // 批量切换
+            elements.prevBtn.addEventListener('click', showPrevText);
+            elements.nextBtn.addEventListener('click', showNextText);
+            elements.deleteTextBtn.addEventListener('click', deleteCurrentText);
+            
+            // 预览标题切换
+            elements.previewSelect.addEventListener('change', handlePreviewSelectChange);
+            
+            // 标题编辑区域实时同步预览
+            elements.titleContent.addEventListener('input', handleTitleContentChange);
+            
+            // 导出文件夹选择
+            elements.selectFolderBtn.addEventListener('click', selectExportFolder);
+            
+            // 预览和生成按钮
+            elements.previewBtn.addEventListener('click', handlePreview);
+            elements.generateBtn.addEventListener('click', handleGenerate);
+
+            // 文字拖动
+            // 注意：这里改为在文字容器上绑定事件，而不是在整个预览容器上
+            // elements.previewContainer.addEventListener('mousedown', startDrag);
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', endDrag);
+            
+            // 色块拖动事件
+            // 色块功能已移除
+        }
+
+        // 切换标签页
+        function switchTab(tabName) {
+            elements.tabs.forEach(tab => {
+                if (tab.getAttribute('data-tab') === tabName) {
+                    tab.classList.add('active');
+                } else {
+                    tab.classList.remove('active');
+                }
+            });
+            
+            elements.tabContents.forEach(content => {
+                if (content.id === `${tabName}Tab`) {
+                    content.classList.add('active');
+                } else {
+                    content.classList.remove('active');
+                }
+            });
+        }
+
+        // 处理背景图上传
+        function handleImageUpload() {
+            const file = elements.imageInput.files[0];
+            if (!file) return;
+            
+            // 检查文件大小
+            if (file.size > 10 * 1024 * 1024) {
+                showToast('仅支持 JPG/PNG/WEBP，最大 10MB');
+                return;
+            }
+            
+            // 检查文件类型
+            if (!file.type.match('image.*')) {
+                showToast('仅支持 JPG/PNG/WEBP 格式');
+                return;
+            }
+            
+            // 保存文件名
+            backgroundImageName = file.name;
+            elements.imageFileNameText.textContent = backgroundImageName;
+            elements.imageFileName.style.display = 'block';
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                backgroundImage = new Image();
+                backgroundImage.onload = function() {
+                    elements.resetImageBtn.disabled = false;
+                    elements.emptyPreview.textContent = '暂无文字，请导入 Excel 或手动添加';
+                    updatePreview();
+                    showToast('背景图上传成功');
+                };
+                backgroundImage.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 重置背景图
+        function resetBackgroundImage() {
+            elements.imageInput.value = '';
+            backgroundImage = null;
+            backgroundImageName = '';
+            elements.imageFileName.style.display = 'none';
+            elements.resetImageBtn.disabled = true;
+            elements.emptyPreview.textContent = '请先上传背景图';
+            updatePreview();
+        }
+
+        // 处理图标上传
+        function handleIconUpload() {
+            const file = elements.iconInput.files[0];
+            if (!file) return;
+            
+            // 检查文件大小
+            if (file.size > 5 * 1024 * 1024) {
+                showToast('图标文件最大 5MB');
+                return;
+            }
+            
+            // 检查文件类型
+            if (!file.type.match('image.*')) {
+                showToast('仅支持图片格式');
+                return;
+            }
+            
+            // 保存文件名
+            decorativeIconName = file.name;
+            elements.iconFileNameText.textContent = decorativeIconName;
+            elements.iconFileName.style.display = 'block';
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                decorativeIcon = new Image();
+                decorativeIcon.onload = function() {
+                    elements.removeIconBtn.disabled = false;
+                    updatePreviewSmart();
+                    showToast('图标上传成功');
+                };
+                decorativeIcon.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 移除图标
+        function removeIcon() {
+            elements.iconInput.value = '';
+            decorativeIcon = null;
+            decorativeIconName = '';
+            elements.iconFileName.style.display = 'none';
+            elements.removeIconBtn.disabled = true;
+            updatePreviewSmart();
+            showToast('图标已移除');
+        }
+
+        // 处理 Excel 上传
+        function handleExcelUpload() {
+            const file = elements.excelInput.files[0];
+            if (!file) return;
+            
+            // 检查文件大小
+            if (file.size > 5 * 1024 * 1024) {
+                showToast('Excel 最大 5MB');
+                return;
+            }
+            
+            // 检查文件类型
+            if (!file.name.match(/\.(xlsx|xls)$/)) {
+                showToast('仅支持 .xlsx/.xls 格式');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    // 尝试不同的解析方式
+                    let jsonData;
+                    try {
+                        // 首先尝试 {header: 1} 方式
+                        jsonData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                    } catch (headerError) {
+                        try {
+                            // 如果失败，尝试默认方式
+                            jsonData = XLSX.utils.sheet_to_json(worksheet);
+                        } catch (defaultError) {
+                            throw new Error('无法解析Excel文件');
+                        }
+                    }
+                    
+                    // 提取第一列（A列-ID）和第二列（B列-标题）的所有非空文字
+                    const newTexts = [];
+                    const newIds = [];
+                    
+                    // 如果是数组格式（{header: 1}）
+                    if (Array.isArray(jsonData) && jsonData.length > 0 && Array.isArray(jsonData[0])) {
+                        // 跳过第一行（标题行），从第二行开始
+                        for (let i = 1; i < jsonData.length; i++) {
+                            const idValue = jsonData[i][0] ? jsonData[i][0].toString() : '';
+                            const titleValue = jsonData[i][1] ? jsonData[i][1].toString() : '';
+                            
+                            // 只添加B列有内容的行
+                            if (titleValue !== '') {
+                                newIds.push(idValue);
+                                // 保持原始格式，不处理换行符
+                                newTexts.push(titleValue);
+                            }
+                        }
+                    } 
+                    // 如果是对象数组格式（默认）
+                    else if (Array.isArray(jsonData) && jsonData.length > 0 && typeof jsonData[0] === 'object') {
+                        // 获取所有键名
+                        const keys = Object.keys(jsonData[0]);
+                        const firstColumnKey = keys[0] || 'A';
+                        const secondColumnKey = keys.length > 1 ? keys[1] : 'B';
+                        
+                        for (let i = 0; i < jsonData.length; i++) {
+                            const idValue = jsonData[i][firstColumnKey] ? jsonData[i][firstColumnKey].toString() : '';
+                            const titleValue = jsonData[i][secondColumnKey] ? jsonData[i][secondColumnKey].toString() : '';
+                            
+                            // 只添加B列有内容的行
+                            if (titleValue !== '') {
+                                newIds.push(idValue);
+                                // 保持原始格式，不处理换行符
+                                newTexts.push(titleValue);
+                            }
+                        }
+                    }
+                    
+                    if (newTexts.length === 0) {
+                        showToast('第二列无非空文字');
+                        return;
+                    }
+                    
+                    textList = newTexts;
+                    idList = newIds;
+                    // 为每个导入的文字初始化偏移量
+                    textOffsets = newTexts.map(() => ({x: 0, y: 0}));
+                    currentIndex = 0;
+                    elements.resetExcelBtn.disabled = false;
+                    elements.clearListBtn.disabled = false;
+                    
+                    // 显示成功消息
+                    elements.excelCount.textContent = newTexts.length;
+                    elements.excelSuccessMsg.style.display = 'block';
+                    
+                    updateBatchControls();
+                    updatePreview();
+                    updateTitleEdit(); // 更新标题编辑区域
+                    showToast(`成功导入 ${newTexts.length} 条文字`);
+                } catch (error) {
+                    showToast('Excel 解析失败: ' + error.message);
+                    console.error(error);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // 重置 Excel 导入
+        function resetExcelImport() {
+            elements.excelInput.value = '';
+            elements.resetExcelBtn.disabled = true;
+            // 不清空文字列表，因为可能还有手动添加的文字
+        }
+
+        // 清空文字列表
+        function clearTextList() {
+            textList = [];
+            idList = [];
+            textOffsets = [];
+            currentIndex = 0;
+            elements.clearListBtn.disabled = true;
+            elements.excelSuccessMsg.style.display = 'none';
+            updateBatchControls();
+            updateTitleEdit();
+            updatePreview();
+        }
+
+        // 添加手动输入的文字到列表
+        function addManualTextToList() {
+            const text = elements.manualInput.value;
+            // 允许空文本（包括只有换行符的文本）
+            if (text === null || text === undefined) {
+                showToast('请输入文字');
+                return;
+            }
+            
+            // 限制最多 3 行，每行最多 20 字（但允许空行）
+            const lines = text.split('\n');
+            if (lines.length > 3) {
+                showToast('最多 3 行，已自动截断');
+                lines.splice(3);
+            }
+            
+            const processedLines = lines.map(line => {
+                if (line.length > 20) {
+                    showToast('每行最多 20 字，已自动截断');
+                    return line.substring(0, 20);
+                }
+                return line;
+            });
+            
+            const processedText = processedLines.join('\n');
+            
+            // 检查是否在编辑模式（手动输入框中有内容且当前有选中的文字）
+            const manualTabActive = document.getElementById('manualTab').classList.contains('active');
+            if (manualTabActive && textList.length > 0 && elements.manualInput.value !== '') {
+                // 更新当前选中的文字
+                textList[currentIndex] = processedText;
+                showToast('已更新当前文字');
+            } else {
+                // 新增文字
+                textList.push(processedText);
+                // 为新添加的文字初始化偏移量
+                textOffsets.push({x: 0, y: 0});
+                showToast('已添加新文字');
+            }
+            
+            elements.manualInput.value = '';
+            elements.clearListBtn.disabled = false;
+            updateBatchControls();
+            updateTitleEdit();
+            updatePreview();
+        }
+
+        // 编辑当前选中的文字
+        function editCurrentText() {
+            if (textList.length === 0) {
+                showToast('没有可编辑的文字');
+                return;
+            }
+            
+            // 将当前选中的文字填充到输入框中
+            elements.manualInput.value = textList[currentIndex];
+            
+            // 切换到手动添加标签页
+            switchTab('manual');
+            
+            showToast('已加载当前文字到编辑框，修改后请点击"添加到列表"按钮更新');
+        }
+
+        // 处理手动输入框内容变化（实时预览）
+        function handleManualInputChange() {
+            const text = elements.manualInput.value;
+            
+            // 如果没有背景图，不需要更新预览
+            if (!backgroundImage) {
+                return;
+            }
+            
+            // 直接更新预览显示输入框的内容（包括空内容）
+            updatePreviewWithText(text);
+        }
+        
+        // 处理标题编辑区域内容变化（实时同步预览）
+        function handleTitleContentChange() {
+            const text = elements.titleContent.value;
+            
+            // 更新列表中的数据
+            if (textList.length > 0 && currentIndex >= 0 && currentIndex < textList.length) {
+                textList[currentIndex] = text;
+            }
+            
+            // 如果没有背景图，不需要更新预览
+            if (!backgroundImage) {
+                return;
+            }
+            
+            // 实时更新预览
+            updatePreviewWithText(text);
+        }
+        
+        // 实时更新预览（统一处理各种输入变化）
+        function updatePreviewRealtime() {
+            if (!backgroundImage) {
+                return;
+            }
+            
+            // 获取当前应该显示的文字
+            let currentText = '';
+            
+            // 优先使用标题编辑区域的内容
+            if (elements.titleEditArea.style.display !== 'none' && elements.titleContent.value) {
+                currentText = elements.titleContent.value;
+            }
+            // 其次检查手动输入模式
+            else if (document.getElementById('manualTab').classList.contains('active') && elements.manualInput.value) {
+                currentText = elements.manualInput.value;
+            }
+            // 最后使用列表中的数据
+            else if (textList.length > 0 && currentIndex >= 0 && currentIndex < textList.length) {
+                currentText = textList[currentIndex];
+            }
+            
+            updatePreviewWithText(currentText);
+        }
+
+        // 智能更新预览：检测是否有手动输入的文字
+        function updatePreviewSmart() {
+            // 检查是否在手动添加模式下，且输入框有内容
+            const manualTabActive = document.getElementById('manualTab').classList.contains('active');
+            const manualInputText = elements.manualInput.value;
+            
+            // 如果在手动模式且输入框有内容，使用输入框的文字
+            if (manualTabActive && manualInputText !== '') {
+                updatePreviewWithText(manualInputText);
+            } else if (textList.length > 0) {
+                // 如果有列表数据，使用普通预览
+                updatePreview();
+            } else {
+                // 如果没有数据但有背景图，也要更新预览以显示空状态
+                updatePreview();
+            }
+        }
+
+        // 重置位置
+        function resetPosition() {
+            // 重置当前文字项的偏移量
+            if (!textOffsets[currentIndex]) {
+                textOffsets[currentIndex] = {x: 0, y: 0};
+            } else {
+                textOffsets[currentIndex].x = 0;
+                textOffsets[currentIndex].y = 0;
+            }
+            
+            offsetX = 0;
+            offsetY = 0;
+            elements.positionXInput.value = 0;
+            elements.positionYInput.value = 0;
+            updatePreview();
+        }
+
+        // 显示上一条文字
+        function showPrevText() {
+            if (textList.length === 0) return;
+            currentIndex = (currentIndex - 1 + textList.length) % textList.length;
+            updateBatchControls();
+            updateTitleEdit();
+            updatePreview();
+        }
+
+        // 显示下一条文字
+        function showNextText() {
+            if (textList.length === 0) return;
+            currentIndex = (currentIndex + 1) % textList.length;
+            updateBatchControls();
+            updateTitleEdit();
+            updatePreview();
+        }
+
+        // 删除当前文字
+        function deleteCurrentText() {
+            if (textList.length === 0) {
+                showToast('没有可删除的文字');
+                return;
+            }
+            
+            // 从列表中删除当前文字、ID及其偏移量
+            textList.splice(currentIndex, 1);
+            idList.splice(currentIndex, 1);
+            textOffsets.splice(currentIndex, 1);
+            
+            // 调整当前索引
+            if (currentIndex >= textList.length && textList.length > 0) {
+                currentIndex = textList.length - 1;
+            }
+            
+            // 如果列表为空，重置索引
+            if (textList.length === 0) {
+                currentIndex = 0;
+                elements.clearListBtn.disabled = true;
+            }
+            
+            updateBatchControls();
+            updateTitleEdit();
+            updatePreview();
+            showToast('已删除当前文字');
+        }
+
+        // 更新批量控制按钮状态
+        function updateBatchControls() {
+            const hasText = textList.length > 0;
+            elements.prevBtn.disabled = !hasText;
+            elements.nextBtn.disabled = !hasText;
+            elements.generateBtn.disabled = !(backgroundImage && hasText && exportFolder);
+            elements.editTextBtn.disabled = !hasText;
+            elements.deleteTextBtn.disabled = !hasText;
+            elements.currentCount.textContent = hasText ? currentIndex + 1 : 0;
+            elements.totalCount.textContent = textList.length;
+            updatePreviewSelectOptions();
+            updateStatusBar();
+        }
+        
+        // 更新标题编辑区域
+        function updateTitleEdit() {
+            if (textList.length > 0 && idList.length > 0) {
+                elements.titleEditArea.style.display = 'block';
+                elements.titleEditNumber.textContent = currentIndex + 1;
+                elements.titleContent.value = textList[currentIndex] || '';
+                elements.titleId.value = idList[currentIndex] || '';
+            } else {
+                elements.titleEditArea.style.display = 'none';
+            }
+        }
+        
+        // 更新预览选择下拉框选项
+        function updatePreviewSelectOptions() {
+            if (textList.length === 0) {
+                elements.previewSelect.innerHTML = '<option value="">请先导入数据</option>';
+                return;
+            }
+            
+            elements.previewSelect.innerHTML = '';
+            textList.forEach((text, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                const preview = text.split('\n')[0].substring(0, 10);
+                option.textContent = `标题${index + 1}`;
+                if (index === previewIndex) {
+                    option.selected = true;
+                }
+                elements.previewSelect.appendChild(option);
+            });
+        }
+        
+        // 处理预览选择变化
+        function handlePreviewSelectChange() {
+            const selectedIndex = parseInt(elements.previewSelect.value);
+            if (!isNaN(selectedIndex) && selectedIndex >= 0 && selectedIndex < textList.length) {
+                previewIndex = selectedIndex;
+                updateStatusBar();
+                // 更新预览显示选中的标题
+                currentIndex = previewIndex;
+                updateBatchControls();
+                updateTitleEdit();
+                updatePreview();
+            }
+        }
+        
+        // 选择导出文件夹
+        async function selectExportFolder() {
+            // 检查浏览器是否支持 File System Access API
+            if ('showDirectoryPicker' in window) {
+                try {
+                    // 使用现代 API 选择文件夹
+                    const dirHandle = await window.showDirectoryPicker();
+                    exportFolderHandle = dirHandle;
+                    exportFolder = dirHandle.name;
+                    
+                    elements.folderNotSelected.style.display = 'none';
+                    elements.folderPath.style.display = 'block';
+                    elements.folderPathText.textContent = dirHandle.name;
+                    updateBatchControls();
+                    showToast('文件夹选择成功');
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.error('选择文件夹失败:', err);
+                        showToast('文件夹选择失败');
+                    }
+                }
+            } else {
+                // 不支持的浏览器，使用默认下载目录
+                showToast('您的浏览器不支持文件夹选择，将保存到默认下载目录。请使用Chrome/Edge浏览器');
+                exportFolder = '默认下载目录';
+                elements.folderNotSelected.style.display = 'none';
+                elements.folderPath.style.display = 'block';
+                elements.folderPathText.textContent = '浏览器默认下载目录';
+                updateBatchControls();
+            }
+        }
+        
+        // 处理预览按钮
+        function handlePreview() {
+            if (!backgroundImage) {
+                showToast('请先上传背景图');
+                return;
+            }
+            if (textList.length === 0) {
+                showToast('请先导入文字数据');
+                return;
+            }
+            // 预览当前选中的标题
+            showToast('正在预览当前标题...');
+            updateStatusBar();
+        }
+        
+        // 处理生成按钮
+        function handleGenerate() {
+            if (!backgroundImage) {
+                showToast('请先上传背景图');
+                return;
+            }
+            if (textList.length === 0) {
+                showToast('请先导入文字数据');
+                return;
+            }
+            if (!exportFolder) {
+                showToast('请先选择导出文件夹');
+                return;
+            }
+            
+            // 批量生成所有图片
+            generateAllImages();
+        }
+        
+        // 更新状态栏
+        function updateStatusBar() {
+            if (textList.length > 0) {
+                elements.statusBar.style.display = 'block';
+                const titlePreview = textList[previewIndex] ? textList[previewIndex].split('\n')[0] : '';
+                elements.statusText.textContent = `预览第 ${previewIndex + 1} 张图片 - 显示标题${previewIndex + 1}`;
+            } else {
+                elements.statusBar.style.display = 'none';
+            }
+        }
+
+        // 开始拖动
+        function startDrag(e) {
+            if (!backgroundImage) return;
+            
+            const textContainer = document.querySelector('.preview-text-container');
+            if (!textContainer || !textContainer.contains(e.target)) return;
+            
+            isDragging = true;
+            // 使用当前的偏移量作为起始点（无论是列表模式还是手动输入模式）
+            dragStartX = e.clientX - offsetX;
+            dragStartY = e.clientY - offsetY;
+            textContainer.style.cursor = 'grabbing';
+            e.preventDefault(); // 阻止默认行为
+        }
+
+        // 拖动中
+        function drag(e) {
+            if (!isDragging) return;
+            
+            // 计算新的偏移量
+            const newX = e.clientX - dragStartX;
+            const newY = e.clientY - dragStartY;
+            
+            // 限制拖动范围
+            offsetX = Math.max(-500, Math.min(500, newX));
+            offsetY = Math.max(-500, Math.min(500, newY));
+            
+            // 如果当前有列表项，更新列表项的偏移量
+            if (textList.length > 0 && textOffsets[currentIndex]) {
+                textOffsets[currentIndex].x = offsetX;
+                textOffsets[currentIndex].y = offsetY;
+            }
+            
+            // 更新输入框的数值显示
+            elements.positionXInput.value = offsetX;
+            elements.positionYInput.value = offsetY;
+            
+            updatePreviewSmart();
+            e.preventDefault(); // 阻止默认行为
+        }
+
+        // 结束拖动
+        function endDrag() {
+            if (!isDragging) return;
+            isDragging = false;
+            const textContainer = document.querySelector('.preview-text-container');
+            if (textContainer) {
+                textContainer.style.cursor = 'move';
+            }
+        }
+        
+        // 色块功能已移除
+
+        // 更新预览
+        function updatePreview() {
+            // 清空预览容器
+            elements.previewContainer.innerHTML = '';
+            
+            // 如果没有背景图
+            if (!backgroundImage) {
+                const emptyPreview = document.createElement('div');
+                emptyPreview.classList.add('empty-preview');
+                emptyPreview.textContent = '请先上传背景图';
+                elements.previewContainer.appendChild(emptyPreview);
+                return;
+            }
+            
+            // 添加背景图
+            const bgImg = backgroundImage.cloneNode();
+            bgImg.classList.add('preview-bg');
+            elements.previewContainer.appendChild(bgImg);
+            
+            // 如果没有文字
+            if (textList.length === 0) {
+                const emptyText = document.createElement('div');
+                emptyText.classList.add('empty-preview');
+                emptyText.textContent = '暂无文字，请导入 Excel 或手动添加';
+                elements.previewContainer.appendChild(emptyText);
+                return;
+            }
+            
+            // 获取当前文字的偏移量
+            const currentOffset = textOffsets[currentIndex] || {x: 0, y: 0};
+            
+            // 创建一个独立的容器来放置文字
+            const contentContainer = document.createElement('div');
+            contentContainer.style.position = 'relative';
+            contentContainer.style.width = '100%';
+            contentContainer.style.height = '100%';
+            contentContainer.style.overflow = 'hidden';
+            
+            // 添加文字
+            const textContainer = document.createElement('div');
+            textContainer.classList.add('preview-text-container');
+            textContainer.style.position = 'absolute';
+            textContainer.style.left = '0';
+            textContainer.style.top = '50%';
+            textContainer.style.width = '100%';
+            textContainer.style.transform = 'translateY(-50%)';
+            
+            // 如果有文字偏移，则应用偏移
+            if (currentOffset.x !== 0 || currentOffset.y !== 0) {
+                textContainer.style.transform = `translate(${currentOffset.x}px, calc(-50% + ${currentOffset.y}px))`;
+            }
+            
+            // 为文字容器绑定拖拽事件
+            textContainer.addEventListener('mousedown', startDrag);
+            
+            const textElement = document.createElement('div');
+            textElement.classList.add('preview-text');
+            // 将空格转换为不间断空格，确保空格被正确显示
+            const displayText = textList[currentIndex].replace(/ /g, '\u00A0');
+            textElement.textContent = displayText;
+            textElement.style.fontFamily = elements.fontSelect.value;
+            // 根据预览区域尺寸调整字体大小，避免过大导致显示问题
+            const previewFontSize = Math.min(elements.fontSizeInput.value, 56); // 限制最大预览字体大小
+            textElement.style.fontSize = `${previewFontSize}px`;
+            textElement.style.color = elements.textColorPicker.value;
+            textElement.style.position = 'relative';
+            // 保持空格和换行的显示
+            textElement.style.whiteSpace = 'pre-wrap';
+            textElement.style.wordWrap = 'break-word';
+            textElement.style.overflow = 'hidden';
+            // 设置合适的宽度以避免过度换行
+            textElement.style.maxWidth = '100%';
+            textElement.style.margin = '0 auto';
+            textElement.style.padding = '0 10px';
+            // 加粗
+            if (elements.boldToggle.checked) {
+                textElement.style.fontWeight = 'bold';
+            } else {
+                textElement.style.fontWeight = 'normal';
+            }
+            // 描边
+            if (elements.strokeToggle.checked) {
+                textElement.style.webkitTextStroke = `2px ${elements.strokeColorPicker.value}`;
+                textElement.style.textStroke = `2px ${elements.strokeColorPicker.value}`;
+            } else {
+                textElement.style.webkitTextStroke = '';
+                textElement.style.textStroke = '';
+            }
+            
+            textContainer.appendChild(textElement);
+            contentContainer.appendChild(textContainer);
+            elements.previewContainer.appendChild(contentContainer);
+            
+            // 添加装饰图标
+            if (decorativeIcon) {
+                const iconContainer = document.createElement('div');
+                iconContainer.style.position = 'absolute';
+                iconContainer.style.zIndex = '3';
+                iconContainer.style.left = '50%';
+                iconContainer.style.top = '50%';
+                
+                const iconX = parseInt(elements.iconXInput.value) || 0;
+                const iconY = parseInt(elements.iconYInput.value) || 0;
+                const iconSize = parseInt(elements.iconSizeInput.value) || 80;
+                
+                iconContainer.style.transform = `translate(calc(-50% + ${iconX}px), calc(-50% + ${iconY}px))`;
+                
+                const iconImg = decorativeIcon.cloneNode();
+                iconImg.style.width = `${iconSize}px`;
+                iconImg.style.height = 'auto';
+                iconImg.style.display = 'block';
+                
+                iconContainer.appendChild(iconImg);
+                elements.previewContainer.appendChild(iconContainer);
+            }
+            
+            // 更新输入框显示为当前文字的偏移量
+            // 但不要覆盖用户正在输入的值
+            if (document.activeElement !== elements.positionXInput) {
+                elements.positionXInput.value = currentOffset.x;
+            }
+            if (document.activeElement !== elements.positionYInput) {
+                elements.positionYInput.value = currentOffset.y;
+            }
+            offsetX = currentOffset.x;
+            offsetY = currentOffset.y;
+        }
+
+        // 更新预览（使用指定的文字内容）
+        function updatePreviewWithText(text) {
+            // 清空预览容器
+            elements.previewContainer.innerHTML = '';
+            
+            // 如果没有背景图
+            if (!backgroundImage) {
+                const emptyPreview = document.createElement('div');
+                emptyPreview.classList.add('empty-preview');
+                emptyPreview.textContent = '请先上传背景图';
+                elements.previewContainer.appendChild(emptyPreview);
+                return;
+            }
+            
+            // 添加背景图
+            const bgImg = backgroundImage.cloneNode();
+            bgImg.classList.add('preview-bg');
+            elements.previewContainer.appendChild(bgImg);
+            
+            // 如果文字为空
+            if (!text || text === '') {
+                const emptyText = document.createElement('div');
+                emptyText.classList.add('empty-preview');
+                emptyText.textContent = '暂无文字，请导入 Excel 或手动添加';
+                elements.previewContainer.appendChild(emptyText);
+                return;
+            }
+            
+            // 使用当前全局的偏移量（支持手动输入模式的拖拽）
+            // 直接从输入框读取，确保实时同步
+            const currentOffsetX = parseInt(elements.positionXInput.value) || 0;
+            const currentOffsetY = parseInt(elements.positionYInput.value) || 0;
+            const currentOffset = {x: currentOffsetX, y: currentOffsetY};
+            
+            // 同步更新全局变量
+            offsetX = currentOffsetX;
+            offsetY = currentOffsetY;
+            
+            // 创建一个独立的容器来放置文字
+            const contentContainer = document.createElement('div');
+            contentContainer.style.position = 'relative';
+            contentContainer.style.width = '100%';
+            contentContainer.style.height = '100%';
+            contentContainer.style.overflow = 'hidden';
+            
+            // 添加文字
+            const textContainer = document.createElement('div');
+            textContainer.classList.add('preview-text-container');
+            textContainer.style.position = 'absolute';
+            textContainer.style.left = '0';
+            textContainer.style.top = '50%';
+            textContainer.style.width = '100%';
+            textContainer.style.transform = 'translateY(-50%)';
+            
+            // 如果有文字偏移，则应用偏移
+            if (currentOffset.x !== 0 || currentOffset.y !== 0) {
+                textContainer.style.transform = `translate(${currentOffset.x}px, calc(-50% + ${currentOffset.y}px))`;
+            }
+            
+            // 为文字容器绑定拖拽事件
+            textContainer.addEventListener('mousedown', startDrag);
+            
+            const textElement = document.createElement('div');
+            textElement.classList.add('preview-text');
+            // 将空格转换为不间断空格，确保空格被正确显示
+            const displayText = text.replace(/ /g, '\u00A0');
+            textElement.textContent = displayText;
+            textElement.style.fontFamily = elements.fontSelect.value;
+            // 根据预览区域尺寸调整字体大小，避免过大导致显示问题
+            const previewFontSize = Math.min(elements.fontSizeInput.value, 56); // 限制最大预览字体大小
+            textElement.style.fontSize = `${previewFontSize}px`;
+            textElement.style.color = elements.textColorPicker.value;
+            textElement.style.position = 'relative';
+            // 保持空格和换行的显示
+            textElement.style.whiteSpace = 'pre-wrap';
+            textElement.style.wordWrap = 'break-word';
+            textElement.style.overflow = 'hidden';
+            // 设置合适的宽度以避免过度换行
+            textElement.style.maxWidth = '100%';
+            textElement.style.margin = '0 auto';
+            textElement.style.padding = '0 10px';
+            // 加粗
+            if (elements.boldToggle.checked) {
+                textElement.style.fontWeight = 'bold';
+            } else {
+                textElement.style.fontWeight = 'normal';
+            }
+            // 描边
+            if (elements.strokeToggle.checked) {
+                textElement.style.webkitTextStroke = `2px ${elements.strokeColorPicker.value}`;
+                textElement.style.textStroke = `2px ${elements.strokeColorPicker.value}`;
+            } else {
+                textElement.style.webkitTextStroke = '';
+                textElement.style.textStroke = '';
+            }
+            
+            textContainer.appendChild(textElement);
+            contentContainer.appendChild(textContainer);
+            elements.previewContainer.appendChild(contentContainer);
+            
+            // 添加装饰图标
+            if (decorativeIcon) {
+                const iconContainer = document.createElement('div');
+                iconContainer.style.position = 'absolute';
+                iconContainer.style.zIndex = '3';
+                iconContainer.style.left = '50%';
+                iconContainer.style.top = '50%';
+                
+                const iconX = parseInt(elements.iconXInput.value) || 0;
+                const iconY = parseInt(elements.iconYInput.value) || 0;
+                const iconSize = parseInt(elements.iconSizeInput.value) || 80;
+                
+                iconContainer.style.transform = `translate(calc(-50% + ${iconX}px), calc(-50% + ${iconY}px))`;
+                
+                const iconImg = decorativeIcon.cloneNode();
+                iconImg.style.width = `${iconSize}px`;
+                iconImg.style.height = 'auto';
+                iconImg.style.display = 'block';
+                
+                iconContainer.appendChild(iconImg);
+                elements.previewContainer.appendChild(iconContainer);
+            }
+        }
+
+        // 显示提示消息
+        function showToast(message) {
+            elements.notification.textContent = message;
+            elements.notification.classList.add('show');
+            
+            setTimeout(() => {
+                elements.notification.classList.remove('show');
+            }, 3000);
+        }
+
+        // 导出图片
+        function exportImage() {
+            if (!backgroundImage || textList.length === 0) {
+                showToast('请先上传背景图并添加文字');
+                return;
+            }
+            
+            // 创建一个canvas元素
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 设置canvas尺寸与原始背景图相同，以保持最佳质量
+            canvas.width = backgroundImage.width;
+            canvas.height = backgroundImage.height;
+            
+            // 绘制背景图
+            ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+            
+            // 获取当前文字和样式设置
+            const currentText = textList[currentIndex];
+            const fontFamily = elements.fontSelect.value;
+            const fontSize = elements.fontSizeInput.value;
+            const textColor = elements.textColorPicker.value;
+            const isBold = elements.boldToggle.checked;
+            const hasStroke = elements.strokeToggle.checked;
+            const strokeColor = elements.strokeColorPicker.value;
+            
+            // 获取当前文字的偏移量
+            const currentOffset = textOffsets[currentIndex] || {x: 0, y: 0};
+            
+            // 计算缩放比例
+            const scaleX = canvas.width / 400;
+            const scaleY = canvas.height / 533;
+            
+            // 设置文字样式（字体大小需要按比例缩放）
+            const fontWeight = isBold ? 'bold' : 'normal';
+            const scaledFontSize = fontSize * scaleY; // 按Y轴比例缩放字体大小
+            ctx.font = `${fontWeight} ${scaledFontSize}px ${fontFamily}`;
+            ctx.textAlign = 'center';
+            ctx.fillStyle = textColor;
+            
+            // 计算文字位置（考虑偏移）
+            const x = (canvas.width / 2) + (currentOffset.x * scaleX);
+            const y = (canvas.height / 2) + (currentOffset.y * scaleY);
+            
+            // 绘制文字（支持多行）
+            const lines = currentText.split('\n');
+            const lineHeight = scaledFontSize * 1.2;
+            const startY = y - (lines.length - 1) * lineHeight / 2;
+            
+            // 色块功能已移除
+            
+            for (let i = 0; i < lines.length; i++) {
+                const lineY = startY + i * lineHeight;
+                
+                // 如果有描边，先绘制描边
+                if (hasStroke) {
+                    ctx.strokeStyle = strokeColor;
+                    ctx.lineWidth = 4 * scaleY; // 描边宽度也要缩放
+                    ctx.strokeText(lines[i], x, lineY);
+                }
+                // 绘制文字
+                ctx.fillStyle = textColor;
+                ctx.fillText(lines[i], x, lineY);
+            }
+            
+            // 如果有装饰图标，绘制图标
+            if (decorativeIcon) {
+                const iconX = parseInt(elements.iconXInput.value) || 0;
+                const iconY = parseInt(elements.iconYInput.value) || 0;
+                const iconSize = parseInt(elements.iconSizeInput.value) || 80;
+                
+                // 计算图标在画布上的位置
+                const canvasIconX = (canvas.width / 2) + (iconX * scaleX);
+                const canvasIconY = (canvas.height / 2) + (iconY * scaleY);
+                const scaledIconSize = iconSize * scaleY;
+                
+                // 绘制图标
+                ctx.drawImage(
+                    decorativeIcon,
+                    canvasIconX - (scaledIconSize / 2),
+                    canvasIconY - (scaledIconSize / 2),
+                    scaledIconSize,
+                    scaledIconSize
+                );
+            }
+            
+            // 导出图片
+            const dataURL = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = `小红书图文_${currentIndex + 1}.png`;
+            link.href = dataURL;
+            link.click();
+            
+            showToast('图片导出成功');
+        }
+        
+        // 批量生成所有图片
+        async function generateAllImages() {
+            if (!backgroundImage || textList.length === 0) {
+                showToast('请先上传背景图并导入文字');
+                return;
+            }
+            
+            showToast(`开始生成 ${textList.length} 张图片...`);
+            
+            // 如果支持文件夹选择且已选择文件夹，使用 File System Access API
+            if (exportFolderHandle) {
+                try {
+                    for (let index = 0; index < textList.length; index++) {
+                        const currentText = textList[index];
+                        const currentOffset = textOffsets[index] || {x: 0, y: 0};
+                        const currentId = idList[index] || `图片${index + 1}`;
+                        
+                        // 生成canvas
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        canvas.width = backgroundImage.width;
+                        canvas.height = backgroundImage.height;
+                        ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+                        
+                        // 获取样式设置
+                        const fontFamily = elements.fontSelect.value;
+                        const fontSize = elements.fontSizeInput.value;
+                        const textColor = elements.textColorPicker.value;
+                        const isBold = elements.boldToggle.checked;
+                        const hasStroke = elements.strokeToggle.checked;
+                        const strokeColor = elements.strokeColorPicker.value;
+                        
+                        // 计算缩放比例
+                        const scaleX = canvas.width / 400;
+                        const scaleY = canvas.height / 533;
+                        
+                        // 设置文字样式
+                        const fontWeight = isBold ? 'bold' : 'normal';
+                        const scaledFontSize = fontSize * scaleY;
+                        ctx.font = `${fontWeight} ${scaledFontSize}px ${fontFamily}`;
+                        ctx.textAlign = 'center';
+                        ctx.fillStyle = textColor;
+                        
+                        // 计算文字位置
+                        const x = (canvas.width / 2) + (currentOffset.x * scaleX);
+                        const y = (canvas.height / 2) + (currentOffset.y * scaleY);
+                        
+                        // 绘制文字（支持多行）
+                        const lines = currentText.split('\n');
+                        const lineHeight = scaledFontSize * 1.2;
+                        const startY = y - (lines.length - 1) * lineHeight / 2;
+                        
+                        // 色块功能已移除
+                        
+                        for (let i = 0; i < lines.length; i++) {
+                            const lineY = startY + i * lineHeight;
+                            if (hasStroke) {
+                                ctx.strokeStyle = strokeColor;
+                                ctx.lineWidth = 4 * scaleY;
+                                ctx.strokeText(lines[i], x, lineY);
+                            }
+                            ctx.fillStyle = textColor;
+                            ctx.fillText(lines[i], x, lineY);
+                        }
+                        
+                        // 如果有装饰图标，绘制图标
+                        if (decorativeIcon) {
+                            const iconX = parseInt(elements.iconXInput.value) || 0;
+                            const iconY = parseInt(elements.iconYInput.value) || 0;
+                            const iconSize = parseInt(elements.iconSizeInput.value) || 80;
+                            
+                            // 计算图标在画布上的位置
+                            const canvasIconX = (canvas.width / 2) + (iconX * scaleX);
+                            const canvasIconY = (canvas.height / 2) + (iconY * scaleY);
+                            const scaledIconSize = iconSize * scaleY;
+                            
+                            // 绘制图标
+                            ctx.drawImage(
+                                decorativeIcon,
+                                canvasIconX - (scaledIconSize / 2),
+                                canvasIconY - (scaledIconSize / 2),
+                                scaledIconSize,
+                                scaledIconSize
+                            );
+                        }
+                        
+                        // 保存到选定的文件夹
+                        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                        const fileName = `${currentId}.png`;
+                        const fileHandle = await exportFolderHandle.getFileHandle(fileName, { create: true });
+                        const writable = await fileHandle.createWritable();
+                        await writable.write(blob);
+                        await writable.close();
+                        
+                        showToast(`已生成 ${index + 1}/${textList.length}`);
+                    }
+                    showToast(`所有图片生成完成！共 ${textList.length} 张`);
+                } catch (error) {
+                    console.error('保存文件失败:', error);
+                    showToast('保存失败，请检查文件夹权限');
+                }
+                return;
+            }
+            
+            // 使用传统下载方式（默认下载目录）
+            let count = 0;
+            const generateNext = () => {
+                if (count >= textList.length) {
+                    showToast(`所有图片生成完成！共 ${textList.length} 张`);
+                    return;
+                }
+                
+                const index = count;
+                const currentText = textList[index];
+                const currentOffset = textOffsets[index] || {x: 0, y: 0};
+                const currentId = idList[index] || `图片${index + 1}`;
+                
+                // 创建一个canvas元素
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // 设置canvas尺寸与原始背景图相同
+                canvas.width = backgroundImage.width;
+                canvas.height = backgroundImage.height;
+                
+                // 绘制背景图
+                ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+                
+                // 获取样式设置
+                const fontFamily = elements.fontSelect.value;
+                const fontSize = elements.fontSizeInput.value;
+                const textColor = elements.textColorPicker.value;
+                const isBold = elements.boldToggle.checked;
+                const hasStroke = elements.strokeToggle.checked;
+                const strokeColor = elements.strokeColorPicker.value;
+                
+                // 计算缩放比例
+                const scaleX = canvas.width / 400;  // 预览宽度
+                const scaleY = canvas.height / 533; // 预览高度
+                
+                // 设置文字样式（字体大小需要按比例缩放）
+                const fontWeight = isBold ? 'bold' : 'normal';
+                const scaledFontSize = fontSize * scaleY; // 按Y轴比例缩放字体大小
+                ctx.font = `${fontWeight} ${scaledFontSize}px ${fontFamily}`;
+                ctx.textAlign = 'center';
+                ctx.fillStyle = textColor;
+                
+                // 计算文字位置
+                const x = (canvas.width / 2) + (currentOffset.x * scaleX);
+                const y = (canvas.height / 2) + (currentOffset.y * scaleY);
+                
+                // 绘制文字（支持多行）
+                const lines = currentText.split('\n');
+                const lineHeight = scaledFontSize * 1.2;
+                const startY = y - (lines.length - 1) * lineHeight / 2;
+                                        
+                // 如果启用了高亮色块，先绘制色块
+                if (elements.highlightToggle.checked) {
+                    const highlightColor = elements.highlightColorPicker.value;
+                    const highlightOpacity = elements.highlightOpacityInput.value / 100;
+                    const highlightHeightPercent = elements.highlightHeightInput.value;
+                    const highlightPosition = elements.highlightPositionSelect.value;
+                                            
+                    // 设置色块颜色（带透明度）
+                    const r = parseInt(highlightColor.substr(1, 2), 16);
+                    const g = parseInt(highlightColor.substr(3, 2), 16);
+                    const b = parseInt(highlightColor.substr(5, 2), 16);
+                    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${highlightOpacity})`;
+                                            
+                    // 检查是否有自定义位置和尺寸
+                    if (highlightCustomPositions[index] && highlightCustomSizes[index] && highlightPosition === 'custom') {
+                        // 使用自定义位置和尺寸
+                        const customX = (canvas.width / 2) + (highlightCustomPositions[index].x * scaleX);
+                        const customY = (canvas.height / 2) + (highlightCustomPositions[index].y * scaleY);
+                        const customWidth = highlightCustomSizes[index].width * scaleX;
+                        const customHeight = highlightCustomSizes[index].height * scaleY;
+                        
+                        ctx.fillRect(customX, customY, customWidth, customHeight);
+                    } else {
+                        // 使用预设位置
+                        // 计算文字整体的高度
+                        const textTotalHeight = lines.length * lineHeight;
+                        const highlightHeight = textTotalHeight * (highlightHeightPercent / 100);
+                                            
+                        let highlightY;
+                        if (highlightPosition === 'bottom') {
+                            highlightY = startY + textTotalHeight - highlightHeight;
+                        } else if (highlightPosition === 'middle') {
+                            highlightY = startY + (textTotalHeight / 2) - (highlightHeight / 2);
+                        } else if (highlightPosition === 'top') {
+                            highlightY = startY;
+                        }
+                                            
+                        ctx.fillRect(x - 200 * scaleX, highlightY, 400 * scaleX, highlightHeight);
+                    }
+                }
+                                        
+                for (let i = 0; i < lines.length; i++) {
+                    const lineY = startY + i * lineHeight;
+                                            
+                    // 如果有描边，先绘制描边
+                    if (hasStroke) {
+                        ctx.strokeStyle = strokeColor;
+                        ctx.lineWidth = 4 * scaleY; // 描边宽度也要缩放
+                        ctx.strokeText(lines[i], x, lineY);
+                    }
+                    // 绘制文字
+                    ctx.fillStyle = textColor;
+                    ctx.fillText(lines[i], x, lineY);
+                }
+                                        
+                // 如果有装饰图标，绘制图标
+                if (decorativeIcon) {
+                    const iconX = parseInt(elements.iconXInput.value) || 0;
+                    const iconY = parseInt(elements.iconYInput.value) || 0;
+                    const iconSize = parseInt(elements.iconSizeInput.value) || 80;
+                                            
+                    // 计算图标在画布上的位置
+                    const canvasIconX = (canvas.width / 2) + (iconX * scaleX);
+                    const canvasIconY = (canvas.height / 2) + (iconY * scaleY);
+                    const scaledIconSize = iconSize * scaleY;
+                                            
+                    // 绘制图标
+                    ctx.drawImage(
+                        decorativeIcon,
+                        canvasIconX - (scaledIconSize / 2),
+                        canvasIconY - (scaledIconSize / 2),
+                        scaledIconSize,
+                        scaledIconSize
+                    );
+                }
+                
+                // 导出图片
+                const dataURL = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.download = `${currentId}.png`; // 使用ID作为文件名
+                link.href = dataURL;
+                link.click();
+                
+                count++;
+                
+                // 延迟100ms再生成下一张，避免浏览器阻止
+                setTimeout(generateNext, 100);
+            };
+            
+            generateNext();
+        }
+
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
