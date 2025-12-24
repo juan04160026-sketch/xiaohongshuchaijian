@@ -37,9 +37,11 @@ async function downloadFeishuImage(fileToken: string, recordId: string, index: n
   try {
     const filePath = path.join(feishuImageDir, `${recordId}_${index}.png`);
     
-    // 如果文件已存在，直接返回路径
+    // 总是重新下载图片，确保使用最新的飞书图片
+    // 删除旧文件（如果存在）
     if (fs.existsSync(filePath)) {
-      return filePath;
+      fs.unlinkSync(filePath);
+      console.log(`🗑️ 删除旧图片缓存: ${filePath}`);
     }
     
     const response = await axios.get(
@@ -226,25 +228,30 @@ function setupIPC(): void {
     tableId: string,
     recordId: string,
     status: '已发布' | '发布失败',
-    token: string
+    token: string,
+    dataTableId?: string  // 可选的数据表ID
   ): Promise<boolean> => {
     try {
-      // 先获取表格的第一个 table
-      const tablesRes = await feishuClient.get(`/bitable/v1/apps/${tableId}/tables`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      let targetTableId = dataTableId;
+      
+      // 如果没有指定数据表ID，则获取第一个表
+      if (!targetTableId) {
+        const tablesRes = await feishuClient.get(`/bitable/v1/apps/${tableId}/tables`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      if (tablesRes.data.code !== 0 || !tablesRes.data.data?.items?.length) {
-        console.error('获取表格失败:', tablesRes.data.msg);
-        return false;
+        if (tablesRes.data.code !== 0 || !tablesRes.data.data?.items?.length) {
+          console.error('获取表格失败:', tablesRes.data.msg);
+          return false;
+        }
+
+        targetTableId = tablesRes.data.data.items[0].table_id;
       }
 
-      const firstTableId = tablesRes.data.data.items[0].table_id;
-
       // 更新记录状态 - 单选字段需要使用文本格式
-      console.log(`正在更新飞书记录: tableId=${tableId}, recordId=${recordId}, status=${status}`);
+      console.log(`正在更新飞书记录: tableId=${tableId}, dataTableId=${targetTableId}, recordId=${recordId}, status=${status}`);
       const updateRes = await feishuClient.put(
-        `/bitable/v1/apps/${tableId}/tables/${firstTableId}/records/${recordId}`,
+        `/bitable/v1/apps/${tableId}/tables/${targetTableId}/records/${recordId}`,
         {
           fields: {
             '状态': status,
@@ -347,7 +354,8 @@ function setupIPC(): void {
                     mapping.feishuTableId,
                     result.taskId,
                     result.success ? '已发布' : '发布失败',
-                    feishuToken
+                    feishuToken,
+                    mapping.feishuDataTableId  // 传入数据表ID
                   );
                 }
                 break;
@@ -389,37 +397,37 @@ function setupIPC(): void {
             });
           }
           
-          // 每个窗口内串行发布
-          const results = await multiAccountPublisher.publishSerial(tasksWithAccount);
+          // 获取当前窗口的映射配置
+          const mapping = mappings.find((m: any) => m.windowId === windowId);
           
-          // 记录发布结果并更新飞书状态
-          if (feishuToken) {
-            const mapping = mappings.find((m: any) => m.windowId === windowId);
-            if (mapping) {
-              for (const result of results) {
-                const task = tasks.find((t: any) => t.id === result.taskId);
-                
-                // 记录发布结果
-                loggerManager.logPublishResult(result.taskId, {
-                  ...result,
-                  title: task?.title,
-                  windowName,
-                  message: result.success 
-                    ? `[${windowName}] 发布成功: ${task?.title}` 
-                    : `[${windowName}] 发布失败: ${result.errorMessage}`
-                });
-                
-                if (task) {
-                  await updateFeishuRecordStatus(
-                    mapping.feishuTableId,
-                    result.taskId,
-                    result.success ? '已发布' : '发布失败',
-                    feishuToken
-                  );
-                }
+          // 每个窗口内串行发布，每条完成后立即更新飞书状态
+          const results = await multiAccountPublisher.publishSerial(
+            tasksWithAccount,
+            // 每条任务完成后的回调
+            async (result, task) => {
+              // 记录发布结果
+              loggerManager.logPublishResult(result.taskId, {
+                ...result,
+                title: task?.title,
+                windowName,
+                message: result.success 
+                  ? `[${windowName}] 发布成功: ${task?.title}` 
+                  : `[${windowName}] 发布失败: ${result.errorMessage}`
+              });
+              
+              // 立即更新飞书状态
+              if (feishuToken && mapping) {
+                console.log(`📝 立即更新飞书状态: ${task.title} -> ${result.success ? '已发布' : '发布失败'}`);
+                await updateFeishuRecordStatus(
+                  mapping.feishuTableId,
+                  result.taskId,
+                  result.success ? '已发布' : '发布失败',
+                  feishuToken,
+                  mapping.feishuDataTableId
+                );
               }
             }
-          }
+          );
           
           return { windowId, windowName, results };
         });
@@ -523,13 +531,34 @@ function setupIPC(): void {
           continue;
         }
 
-        const firstTableId = tables[0].table_id;
+        // 使用配置的数据表ID，如果没有配置则使用第一个表格
+        let targetTableId = mapping.feishuDataTableId;
+        let targetTableName = '';
+        
+        if (targetTableId) {
+          // 查找指定的数据表
+          const targetTable = tables.find((t: any) => t.table_id === targetTableId);
+          if (targetTable) {
+            targetTableName = targetTable.name;
+          } else {
+            windowState.status = 'error';
+            windowState.errorMessage = `未找到数据表 ${targetTableId}`;
+            results.push(windowState);
+            continue;
+          }
+        } else {
+          targetTableId = tables[0].table_id;
+          targetTableName = tables[0].name;
+        }
+        
         if (!windowState.feishuTableName) {
-          windowState.feishuTableName = tables[0].name;
+          windowState.feishuTableName = targetTableName;
         }
 
+        console.log(`📋 窗口 ${mapping.windowName}: 读取表格 ${targetTableName} (${targetTableId})`);
+
         // 获取记录
-        const recordsRes = await feishuClient.get(`/bitable/v1/apps/${mapping.feishuTableId}/tables/${firstTableId}/records`, {
+        const recordsRes = await feishuClient.get(`/bitable/v1/apps/${mapping.feishuTableId}/tables/${targetTableId}/records`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -616,7 +645,7 @@ function setupIPC(): void {
   });
 
   // 测试飞书连接 - 使用 axios
-  ipcMain.handle('feishu:test', async (_, appId: string, appSecret: string, tableId: string) => {
+  ipcMain.handle('feishu:test', async (_, appId: string, appSecret: string, tableId: string, dataTableId?: string) => {
     const result: any = {
       success: false,
       tokenOk: false,
@@ -627,7 +656,7 @@ function setupIPC(): void {
       error: '',
     };
 
-    console.log('测试飞书连接:', { appId, tableId });
+    console.log('测试飞书连接:', { appId, tableId, dataTableId });
 
     try {
       // 1. 获取 Token
@@ -664,11 +693,30 @@ function setupIPC(): void {
       }
 
       result.tableOk = true;
-      const firstTableId = tables[0].table_id;
-      result.tableName = tables[0].name;
+      
+      // 如果指定了数据表ID，使用指定的；否则使用第一个
+      let targetTableId = dataTableId;
+      let targetTableName = '';
+      
+      if (dataTableId) {
+        // 查找指定的数据表
+        const targetTable = tables.find((t: any) => t.table_id === dataTableId);
+        if (targetTable) {
+          targetTableName = targetTable.name;
+        } else {
+          result.error = `未找到数据表 ${dataTableId}，可用的表: ${tables.map((t: any) => `${t.name}(${t.table_id})`).join(', ')}`;
+          return result;
+        }
+      } else {
+        targetTableId = tables[0].table_id;
+        targetTableName = tables[0].name;
+      }
+      
+      result.tableName = targetTableName;
+      result.dataTableId = targetTableId;
 
       // 3. 获取字段列表
-      const fieldsRes = await feishuClient.get(`/bitable/v1/apps/${tableId}/tables/${firstTableId}/fields`, {
+      const fieldsRes = await feishuClient.get(`/bitable/v1/apps/${tableId}/tables/${targetTableId}/fields`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -677,7 +725,7 @@ function setupIPC(): void {
       }
 
       // 4. 获取记录
-      const recordsRes = await feishuClient.get(`/bitable/v1/apps/${tableId}/tables/${firstTableId}/records`, {
+      const recordsRes = await feishuClient.get(`/bitable/v1/apps/${tableId}/tables/${targetTableId}/records`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

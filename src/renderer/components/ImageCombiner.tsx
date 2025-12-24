@@ -17,6 +17,17 @@ interface StyleSettings {
   boldEnabled: boolean;
 }
 
+interface SubtitleSettings {
+  enabled: boolean;
+  text: string;
+  fontFamily: string;
+  fontSize: number;
+  textColor: string;
+  offsetX: number; // 副标题X偏移
+  offsetY: number; // 副标题Y偏移
+  boldEnabled: boolean;
+}
+
 interface IconSettings {
   image: string | null;
   size: number;
@@ -43,6 +54,18 @@ function ImageCombiner(): JSX.Element {
     boldEnabled: true,
   });
   
+  // 副标题设置
+  const [subtitleSettings, setSubtitleSettings] = useState<SubtitleSettings>({
+    enabled: false,
+    text: '',
+    fontFamily: "'Microsoft YaHei', sans-serif",
+    fontSize: 32,
+    textColor: '#666666',
+    offsetX: 0,
+    offsetY: 80,
+    boldEnabled: false,
+  });
+  
   // 图标设置
   const [iconSettings, setIconSettings] = useState<IconSettings>({
     image: null,
@@ -57,6 +80,7 @@ function ImageCombiner(): JSX.Element {
   
   // 拖拽状态
   const [isDragging, setIsDragging] = useState(false);
+  const [dragTarget, setDragTarget] = useState<'main' | 'subtitle'>('main');
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   
   // 消息提示
@@ -209,14 +233,29 @@ function ImageCombiner(): JSX.Element {
     if (!backgroundImage || textList.length === 0) return;
     
     const target = e.target as HTMLElement;
-    if (!target.classList.contains('preview-text')) return;
     
-    setIsDragging(true);
-    const currentItem = textList[currentIndex];
-    setDragStart({
-      x: e.clientX - (currentItem?.offsetX || 0),
-      y: e.clientY - (currentItem?.offsetY || 0),
-    });
+    // 检查是否点击了副标题
+    if (target.closest('.preview-subtitle')) {
+      setIsDragging(true);
+      setDragTarget('subtitle');
+      setDragStart({
+        x: e.clientX - (subtitleSettings.offsetX || 0),
+        y: e.clientY - (subtitleSettings.offsetY || 0),
+      });
+      return;
+    }
+    
+    // 检查是否点击了主标题
+    if (target.closest('.preview-main-text')) {
+      setIsDragging(true);
+      setDragTarget('main');
+      const currentItem = textList[currentIndex];
+      setDragStart({
+        x: e.clientX - (currentItem?.offsetX || 0),
+        y: e.clientY - (currentItem?.offsetY || 0),
+      });
+      return;
+    }
   };
 
   // 拖拽中
@@ -226,10 +265,14 @@ function ImageCombiner(): JSX.Element {
     const newX = Math.max(-200, Math.min(200, e.clientX - dragStart.x));
     const newY = Math.max(-200, Math.min(200, e.clientY - dragStart.y));
     
-    setTextList(prev => prev.map((item, idx) => 
-      idx === currentIndex ? { ...item, offsetX: newX, offsetY: newY } : item
-    ));
-  }, [isDragging, dragStart, currentIndex]);
+    if (dragTarget === 'subtitle') {
+      setSubtitleSettings(prev => ({ ...prev, offsetX: newX, offsetY: newY }));
+    } else {
+      setTextList(prev => prev.map((item, idx) => 
+        idx === currentIndex ? { ...item, offsetX: newX, offsetY: newY } : item
+      ));
+    }
+  }, [isDragging, dragStart, currentIndex, dragTarget]);
 
   // 拖拽结束
   const handleMouseUp = useCallback(() => {
@@ -245,6 +288,50 @@ function ImageCombiner(): JSX.Element {
     };
   }, [handleMouseMove, handleMouseUp]);
 
+  // 预览区文字换行计算 - 与Canvas保持一致
+  const getPreviewLines = useCallback((text: string, fontSize: number, fontFamily: string, bold: boolean): string[] => {
+    if (!text) return [];
+    
+    // 预览区宽度是 400px，留出 10px padding，实际可用 380px
+    // 使用 90% 宽度 = 360px
+    const maxWidth = 360;
+    
+    // 创建临时 canvas 来测量文字宽度
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return text.split('\n');
+    
+    const fontWeight = bold ? 'bold' : 'normal';
+    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+    
+    const result: string[] = [];
+    const paragraphs = text.split('\n');
+    
+    for (const paragraph of paragraphs) {
+      if (!paragraph) {
+        result.push('');
+        continue;
+      }
+      
+      let currentLine = '';
+      for (const char of paragraph) {
+        const testLine = currentLine + char;
+        const metrics = ctx.measureText(testLine);
+        
+        if (metrics.width > maxWidth && currentLine) {
+          result.push(currentLine);
+          currentLine = char;
+        } else {
+          currentLine = testLine;
+        }
+      }
+      if (currentLine) {
+        result.push(currentLine);
+      }
+    }
+    
+    return result;
+  }, []);
 
   // 生成单张图片 - 与原始HTML逻辑保持一致
   const generateSingleImage = async (item: TextItem): Promise<Blob | null> => {
@@ -277,14 +364,49 @@ function ImageCombiner(): JSX.Element {
     const scaledFontSize = styleSettings.fontSize * scaleY;
     ctx.font = `${fontWeight} ${scaledFontSize}px ${styleSettings.fontFamily}`;
     ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     ctx.fillStyle = styleSettings.textColor;
     
     // 计算文字位置（考虑偏移）
     const x = (canvas.width / 2) + (item.offsetX * scaleX);
     const y = (canvas.height / 2) + (item.offsetY * scaleY);
     
-    // 绘制文字（支持多行）- 与原始HTML逻辑一致
-    const lines = item.text.split('\n');
+    // 自动换行函数 - 根据最大宽度分割文字
+    const wrapText = (text: string, maxWidth: number): string[] => {
+      const result: string[] = [];
+      // 先按换行符分割
+      const paragraphs = text.split('\n');
+      
+      for (const paragraph of paragraphs) {
+        if (!paragraph) {
+          result.push('');
+          continue;
+        }
+        
+        let currentLine = '';
+        for (const char of paragraph) {
+          const testLine = currentLine + char;
+          const metrics = ctx.measureText(testLine);
+          
+          if (metrics.width > maxWidth && currentLine) {
+            result.push(currentLine);
+            currentLine = char;
+          } else {
+            currentLine = testLine;
+          }
+        }
+        if (currentLine) {
+          result.push(currentLine);
+        }
+      }
+      
+      return result;
+    };
+    
+    // 计算最大宽度（留出边距）
+    const maxWidth = canvas.width * 0.9;
+    const lines = wrapText(item.text, maxWidth);
+    
     const lineHeight = scaledFontSize * 1.2;
     // 关键：使用原始HTML的居中计算方式
     const startY = y - (lines.length - 1) * lineHeight / 2;
@@ -324,6 +446,50 @@ function ImageCombiner(): JSX.Element {
         scaledIconSize,
         scaledIconSize
       );
+    }
+    
+    // 绘制副标题
+    if (subtitleSettings.enabled && subtitleSettings.text) {
+      const subFontWeight = subtitleSettings.boldEnabled ? 'bold' : 'normal';
+      const subScaledFontSize = subtitleSettings.fontSize * scaleY;
+      ctx.font = `${subFontWeight} ${subScaledFontSize}px ${subtitleSettings.fontFamily}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = subtitleSettings.textColor;
+      
+      // 副标题换行
+      const subWrapText = (text: string, maxW: number): string[] => {
+        const res: string[] = [];
+        const paras = text.split('\n');
+        for (const para of paras) {
+          if (!para) { res.push(''); continue; }
+          let curLine = '';
+          for (const ch of para) {
+            const testL = curLine + ch;
+            if (ctx.measureText(testL).width > maxW && curLine) {
+              res.push(curLine);
+              curLine = ch;
+            } else {
+              curLine = testL;
+            }
+          }
+          if (curLine) res.push(curLine);
+        }
+        return res;
+      };
+      
+      const subLines = subWrapText(subtitleSettings.text, maxWidth);
+      const subLineHeight = subScaledFontSize * 1.2;
+      
+      // 副标题使用独立的位置
+      const subX = (canvas.width / 2) + (subtitleSettings.offsetX * scaleX);
+      const subY = (canvas.height / 2) + (subtitleSettings.offsetY * scaleY);
+      const subStartY = subY - (subLines.length - 1) * subLineHeight / 2;
+      
+      for (let i = 0; i < subLines.length; i++) {
+        const subLineY = subStartY + i * subLineHeight;
+        ctx.fillText(subLines[i], subX, subLineY);
+      }
     }
     
     return new Promise((resolve) => {
@@ -408,26 +574,69 @@ function ImageCombiner(): JSX.Element {
               <>
                 <img src={backgroundImage} alt="背景" className="preview-bg" />
                 {currentItem && (
-                  <div 
-                    className="preview-text-container"
-                    style={{
-                      transform: `translate(${currentItem.offsetX}px, calc(-50% + ${currentItem.offsetY}px))`,
-                    }}
-                  >
+                  <div className="preview-content-wrapper">
+                    {/* 主标题 */}
                     <div 
-                      className="preview-text"
+                      className="preview-main-text"
                       style={{
-                        fontFamily: styleSettings.fontFamily,
-                        fontSize: `${styleSettings.fontSize}px`,
-                        color: styleSettings.textColor,
-                        fontWeight: styleSettings.boldEnabled ? 'bold' : 'normal',
-                        WebkitTextStroke: styleSettings.strokeEnabled 
-                          ? `2px ${styleSettings.strokeColor}` 
-                          : 'none',
+                        position: 'absolute',
+                        left: '50%',
+                        top: '50%',
+                        transform: `translate(calc(-50% + ${currentItem.offsetX}px), calc(-50% + ${currentItem.offsetY}px))`,
+                        textAlign: 'center',
+                        cursor: 'move',
                       }}
                     >
-                      {currentItem.text}
+                      {getPreviewLines(currentItem.text, styleSettings.fontSize, styleSettings.fontFamily, styleSettings.boldEnabled).map((line, index) => (
+                        <div 
+                          key={index}
+                          className="preview-text"
+                          style={{
+                            fontFamily: styleSettings.fontFamily,
+                            fontSize: `${styleSettings.fontSize}px`,
+                            color: styleSettings.textColor,
+                            fontWeight: styleSettings.boldEnabled ? 'bold' : 'normal',
+                            lineHeight: 1.2,
+                            ...(styleSettings.strokeEnabled ? {
+                              WebkitTextStroke: `2px ${styleSettings.strokeColor}`,
+                              paintOrder: 'stroke fill',
+                            } : {}),
+                          }}
+                        >
+                          {line || '\u00A0'}
+                        </div>
+                      ))}
                     </div>
+                    {/* 副标题 */}
+                    {subtitleSettings.enabled && subtitleSettings.text && (
+                      <div 
+                        className="preview-subtitle"
+                        style={{
+                          position: 'absolute',
+                          left: '50%',
+                          top: '50%',
+                          transform: `translate(calc(-50% + ${subtitleSettings.offsetX}px), calc(-50% + ${subtitleSettings.offsetY}px))`,
+                          textAlign: 'center',
+                          cursor: 'move',
+                        }}
+                      >
+                        {getPreviewLines(subtitleSettings.text, subtitleSettings.fontSize, subtitleSettings.fontFamily, subtitleSettings.boldEnabled).map((line, index) => (
+                          <div 
+                            key={`sub-${index}`}
+                            className="preview-text"
+                            style={{
+                              fontFamily: subtitleSettings.fontFamily,
+                              fontSize: `${subtitleSettings.fontSize}px`,
+                              color: subtitleSettings.textColor,
+                              fontWeight: subtitleSettings.boldEnabled ? 'bold' : 'normal',
+                              lineHeight: 1.2,
+                            }}
+                          >
+                            {line || '\u00A0'}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
                 {iconSettings.image && (
@@ -668,6 +877,99 @@ function ImageCombiner(): JSX.Element {
             <button className="btn btn-secondary" onClick={handleResetPosition}>
               重置位置
             </button>
+          </div>
+
+          {/* 副标题设置 */}
+          <div className="section">
+            <h3 className="section-title">副标题设置</h3>
+            
+            <div className="form-row">
+              <label>启用：</label>
+              <input 
+                type="checkbox" 
+                checked={subtitleSettings.enabled}
+                onChange={(e) => setSubtitleSettings(prev => ({ ...prev, enabled: e.target.checked }))}
+              />
+            </div>
+            
+            {subtitleSettings.enabled && (
+              <>
+                <div className="form-row">
+                  <label>内容：</label>
+                  <input 
+                    type="text"
+                    value={subtitleSettings.text}
+                    onChange={(e) => setSubtitleSettings(prev => ({ ...prev, text: e.target.value }))}
+                    placeholder="输入副标题"
+                    style={{ flex: 1 }}
+                  />
+                </div>
+                
+                <div className="form-row">
+                  <label>字体：</label>
+                  <select 
+                    value={subtitleSettings.fontFamily}
+                    onChange={(e) => setSubtitleSettings(prev => ({ ...prev, fontFamily: e.target.value }))}
+                  >
+                    <option value="'Microsoft YaHei', sans-serif">微软雅黑</option>
+                    <option value="'SimSun', serif">宋体</option>
+                    <option value="'PingFang SC', sans-serif">苹方</option>
+                    <option value="'Source Han Sans', sans-serif">思源黑体</option>
+                  </select>
+                </div>
+                
+                <div className="form-row">
+                  <label>大小：</label>
+                  <input 
+                    type="number" 
+                    value={subtitleSettings.fontSize}
+                    onChange={(e) => setSubtitleSettings(prev => ({ ...prev, fontSize: parseInt(e.target.value) || 32 }))}
+                    min={12}
+                    max={120}
+                  />
+                </div>
+                
+                <div className="form-row">
+                  <label>颜色：</label>
+                  <input 
+                    type="color" 
+                    value={subtitleSettings.textColor}
+                    onChange={(e) => setSubtitleSettings(prev => ({ ...prev, textColor: e.target.value }))}
+                  />
+                </div>
+                
+                <div className="form-row">
+                  <label>加粗：</label>
+                  <input 
+                    type="checkbox" 
+                    checked={subtitleSettings.boldEnabled}
+                    onChange={(e) => setSubtitleSettings(prev => ({ ...prev, boldEnabled: e.target.checked }))}
+                  />
+                </div>
+                
+                <div className="form-row">
+                  <label>位置X：</label>
+                  <input 
+                    type="number" 
+                    value={subtitleSettings.offsetX}
+                    onChange={(e) => setSubtitleSettings(prev => ({ ...prev, offsetX: parseInt(e.target.value) || 0 }))}
+                    min={-500}
+                    max={500}
+                  />
+                </div>
+                
+                <div className="form-row">
+                  <label>位置Y：</label>
+                  <input 
+                    type="number" 
+                    value={subtitleSettings.offsetY}
+                    onChange={(e) => setSubtitleSettings(prev => ({ ...prev, offsetY: parseInt(e.target.value) || 0 }))}
+                    min={-500}
+                    max={500}
+                  />
+                </div>
+              </>
+            )}
           </div>
 
           {/* 装饰图标 */}

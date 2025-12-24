@@ -33,7 +33,6 @@ export class PlaywrightPublisher {
   async launch(options: { headless?: boolean; slowMo?: number } = {}): Promise<void> {
     const { headless = false, slowMo = 0 } = options;
 
-    // 确保用户数据目录存在
     if (!fs.existsSync(this.userDataDir)) {
       fs.mkdirSync(this.userDataDir, { recursive: true });
     }
@@ -76,17 +75,30 @@ export class PlaywrightPublisher {
     const matchedImages: string[] = [];
     const extensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.PNG', '.JPG', '.JPEG'];
 
+    // 首先查找精确匹配的文件
     for (const ext of extensions) {
       const exactMatch = productId + ext;
       if (files.includes(exactMatch)) {
-        matchedImages.push(path.join(this.imageDir, exactMatch));
+        const fullPath = path.join(this.imageDir, exactMatch);
+        console.log('   ✅ 精确匹配图片: ' + fullPath);
+        matchedImages.push(fullPath);
       }
+    }
 
-      // 支持 商品ID_1.png 格式
-      const pattern = new RegExp('^' + productId + '[_-]?\\d*\\' + ext + '$', 'i');
+    // 如果找到精确匹配，直接返回
+    if (matchedImages.length > 0) {
+      return matchedImages;
+    }
+
+    // 没有精确匹配时，查找模式匹配
+    for (const ext of extensions) {
+      const escapedId = productId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const pattern = new RegExp('^' + escapedId + '[_-]\\d+\\' + ext + '$', 'i');
       for (const file of files) {
         if (pattern.test(file) && !matchedImages.some(img => img.endsWith(file))) {
-          matchedImages.push(path.join(this.imageDir, file));
+          const fullPath = path.join(this.imageDir, file);
+          console.log('   ✅ 模式匹配图片: ' + fullPath);
+          matchedImages.push(fullPath);
         }
       }
     }
@@ -150,7 +162,6 @@ export class PlaywrightPublisher {
 
     const fileInput = await this.page.$('input[type="file"]');
     if (fileInput) {
-      // 检查文件是否存在
       for (const img of images) {
         if (!fs.existsSync(img)) {
           throw new Error('图片文件不存在: ' + img);
@@ -179,7 +190,7 @@ export class PlaywrightPublisher {
     }
     await this.page.waitForTimeout(2000);
 
-    // 输入标题（超过20字自动截断）
+    // 输入标题
     console.log('   输入标题...');
     try {
       const titleInput = await this.page.$(SELECTORS.title);
@@ -203,7 +214,7 @@ export class PlaywrightPublisher {
 
     await this.page.waitForTimeout(1000);
 
-    // 输入正文（智能处理话题标签）
+    // 输入正文
     await this.inputContentWithTopics(task.content);
 
     await this.page.waitForTimeout(2000);
@@ -241,7 +252,6 @@ export class PlaywrightPublisher {
   }
 
 
-  // 智能输入正文，处理话题标签
   private async inputContentWithTopics(content: string): Promise<void> {
     if (!this.page) return;
 
@@ -254,25 +264,18 @@ export class PlaywrightPublisher {
         await this.page.keyboard.press('Control+A');
         await this.page.keyboard.press('Delete');
 
-        // 解析正文，分离普通文本和话题标签
-        // 匹配 #话题名 格式（中文、英文、数字）
         const parts = content.split(/(#[^\s#\[]+)/g);
 
         for (const part of parts) {
           if (!part) continue;
 
           if (part.startsWith('#') && part.length > 1) {
-            // 这是一个话题标签
             const topicName = part;
             console.log('   输入话题: ' + topicName);
 
-            // 输入话题
             await this.page.keyboard.type(topicName, { delay: 50 });
-
-            // 等待下拉框出现
             await this.page.waitForTimeout(1500);
 
-            // 尝试点击下拉框中的第一个选项
             try {
               const topicItem = await this.page.$(SELECTORS.topicItem);
               if (topicItem) {
@@ -286,11 +289,8 @@ export class PlaywrightPublisher {
             }
 
             await this.page.waitForTimeout(500);
-
-            // 输入空格分隔
             await this.page.keyboard.type(' ', { delay: 50 });
           } else {
-            // 普通文本，直接输入
             await this.page.keyboard.type(part, { delay: 10 });
           }
         }
@@ -302,20 +302,17 @@ export class PlaywrightPublisher {
     }
   }
 
-  // 添加商品
   private async addProduct(productId: string): Promise<void> {
     if (!this.page) return;
 
     console.log('   添加商品...');
     try {
-      // 点击添加商品按钮
       const addProductBtn = await this.page.$('text=添加商品');
       if (addProductBtn) {
         await addProductBtn.click();
         console.log('   点击添加商品按钮');
         await this.page.waitForTimeout(2000);
 
-        // 等待弹窗出现，输入商品ID搜索
         const searchInput = await this.page.$('input[placeholder*="搜索"]');
         if (searchInput) {
           await searchInput.click();
@@ -324,14 +321,12 @@ export class PlaywrightPublisher {
           await this.page.keyboard.press('Enter');
           await this.page.waitForTimeout(2000);
 
-          // 勾选第一个商品
           const firstProduct = await this.page.$('.goods-list-normal .good-card-container .d-checkbox');
           if (firstProduct) {
             await firstProduct.click();
             console.log('   ✅ 已勾选商品');
             await this.page.waitForTimeout(1000);
 
-            // 点击确定/保存按钮
             const confirmBtn = await this.page.$('button:has-text("确定"), button:has-text("保存")');
             if (confirmBtn) {
               await confirmBtn.click();
@@ -351,6 +346,7 @@ export class PlaywrightPublisher {
       console.log('   ⚠️ 添加商品失败: ' + (e as Error).message);
     }
   }
+
 
   async publishBatch(tasks: PublishTask[], interval: number = 30000): Promise<PublishResult[]> {
     const results: PublishResult[] = [];
@@ -386,7 +382,6 @@ export class PlaywrightPublisher {
 
       console.log('\n🎉 所有内容发布完成');
     } finally {
-      // 保持浏览器打开一段时间
       console.log('\n浏览器保持打开 30 秒，你可以手动检查结果...');
       await this.page?.waitForTimeout(30000);
       await this.close();

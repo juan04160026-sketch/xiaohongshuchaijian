@@ -51,28 +51,52 @@ export class BitBrowserManager {
    */
   async getWindowList(): Promise<BitBrowserWindow[]> {
     try {
-      const response = await this.client.post('/browser/list', {
-        page: 0,
-        pageSize: 100,
-      });
+      const allWindows: BitBrowserWindow[] = [];
+      let page = 0;  // 比特浏览器 API 分页从 0 开始
+      const pageSize = 100;
+      let hasMore = true;
 
-      if (response.data.success) {
-        const list = response.data.data.list || [];
-        return list.map((item: any) => ({
-          id: item.id,
-          name: item.name,
-          remark: item.remark,
-          groupId: item.groupId,
-          groupName: item.groupName,
-        }));
-      } else {
-        // 检查是否是比特浏览器云端连接问题
-        const msg = response.data.msg || '获取窗口列表失败';
-        if (msg.includes('ENOTFOUND') || msg.includes('serviceapi.bitbrowser')) {
-          throw new Error('比特浏览器无法连接云端服务，请检查：\n1. 网络连接是否正常\n2. 比特浏览器是否已登录\n3. 是否需要配置代理');
+      // 分页获取所有窗口
+      while (hasMore) {
+        console.log(`正在获取第 ${page} 页窗口列表...`);
+        const response = await this.client.post('/browser/list', {
+          page: page,
+          pageSize: pageSize,
+        });
+
+        console.log(`API 响应:`, JSON.stringify(response.data, null, 2));
+
+        if (response.data.success) {
+          const list = response.data.data.list || [];
+          const total = response.data.data.totalNum || 0;
+          
+          const windows = list.map((item: any) => ({
+            id: item.id,
+            name: item.name,
+            remark: item.remark,
+            groupId: item.groupId,
+            groupName: item.groupName,
+          }));
+          
+          allWindows.push(...windows);
+          
+          console.log(`获取窗口列表: 第${page}页, 本页${list.length}个, 已获取${allWindows.length}个, 总共${total}个`);
+          
+          // 检查是否还有更多
+          hasMore = allWindows.length < total && list.length > 0;
+          page++;
+        } else {
+          // 检查是否是比特浏览器云端连接问题
+          const msg = response.data.msg || '获取窗口列表失败';
+          if (msg.includes('ENOTFOUND') || msg.includes('serviceapi.bitbrowser')) {
+            throw new Error('比特浏览器无法连接云端服务，请检查：\n1. 网络连接是否正常\n2. 比特浏览器是否已登录\n3. 是否需要配置代理');
+          }
+          throw new Error(msg);
         }
-        throw new Error(msg);
       }
+
+      console.log(`共获取到 ${allWindows.length} 个窗口`);
+      return allWindows;
     } catch (error: any) {
       console.error('获取比特浏览器窗口列表失败:', error);
       // 检查是否是连接超时或拒绝

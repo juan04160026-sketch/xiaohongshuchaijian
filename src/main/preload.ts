@@ -34,8 +34,8 @@ contextBridge.exposeInMainWorld('api', {
   },
   // 飞书测试 API
   feishu: {
-    test: (appId: string, appSecret: string, tableId: string) => 
-      ipcRenderer.invoke('feishu:test', appId, appSecret, tableId),
+    test: (appId: string, appSecret: string, tableId: string, dataTableId?: string) => 
+      ipcRenderer.invoke('feishu:test', appId, appSecret, tableId, dataTableId),
     loadByWindows: () => ipcRenderer.invoke('feishu:loadByWindows'),
   },
   // 文件操作 API

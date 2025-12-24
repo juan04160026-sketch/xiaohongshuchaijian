@@ -43,10 +43,18 @@ function App(): JSX.Element {
       </header>
 
       <main className="app-main">
-        {activeTab === 'config' && <ConfigSettings />}
-        {activeTab === 'combiner' && <ImageCombiner />}
-        {activeTab === 'publish' && <MultiAccountPublish />}
-        {activeTab === 'logs' && <LogsViewer />}
+        <div style={{ display: activeTab === 'config' ? 'block' : 'none', height: '100%' }}>
+          <ConfigSettings />
+        </div>
+        <div style={{ display: activeTab === 'combiner' ? 'block' : 'none', height: '100%' }}>
+          <ImageCombiner />
+        </div>
+        <div style={{ display: activeTab === 'publish' ? 'block' : 'none', height: '100%' }}>
+          <MultiAccountPublish />
+        </div>
+        <div style={{ display: activeTab === 'logs' ? 'block' : 'none', height: '100%' }}>
+          <LogsViewer />
+        </div>
       </main>
     </div>
   );

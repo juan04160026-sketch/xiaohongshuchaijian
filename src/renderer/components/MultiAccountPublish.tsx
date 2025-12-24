@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { WindowPublishState, WindowTableMapping, ImageSourceType } from '../../types';
 import './MultiAccountPublish.css';
 
@@ -10,6 +10,7 @@ function MultiAccountPublish(): JSX.Element {
   const [messageType, setMessageType] = useState<'info' | 'success' | 'warning' | 'error'>('info');
   const [loading, setLoading] = useState(false);
   const [imageSource, setImageSource] = useState<ImageSourceType>('local');
+  const [selectedWindows, setSelectedWindows] = useState<Set<string>>(new Set());
 
   // 显示消息，自动消失
   const showMessage = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info', duration = 5000) => {
@@ -66,6 +67,9 @@ function MultiAccountPublish(): JSX.Element {
     try {
       const states = await (window as any).api.feishu.loadByWindows();
       setWindowStates(states);
+      // 默认选中所有有任务的窗口
+      const windowsWithTasks = states.filter((s: WindowPublishState) => s.tasks.length > 0 && s.status !== 'error');
+      setSelectedWindows(new Set(windowsWithTasks.map((s: WindowPublishState) => s.windowId)));
       
       const totalTasks = states.reduce((sum: number, s: WindowPublishState) => sum + s.tasks.length, 0);
       const errorCount = states.filter((s: WindowPublishState) => s.status === 'error').length;
@@ -92,7 +96,12 @@ function MultiAccountPublish(): JSX.Element {
       const config = await (window as any).api.config.get();
       await (window as any).api.config.set({ ...config, imageSource: source });
       await (window as any).api.config.save();
-      showMessage(`已切换为${source === 'feishu' ? '飞书图片' : '本地合成图片'}`, 'success');
+      const sourceNames: Record<ImageSourceType, string> = {
+        'local': '本地合成图片',
+        'feishu': '飞书图片',
+        'text2image': '文字配图'
+      };
+      showMessage(`已切换为${sourceNames[source]}`, 'success');
     } catch (error) {
       console.error('保存配置失败:', error);
     }
@@ -100,25 +109,28 @@ function MultiAccountPublish(): JSX.Element {
 
   // 开始发布
   const handleStartPublish = async (): Promise<void> => {
-    const windowsWithTasks = windowStates.filter(s => s.tasks.length > 0 && s.status !== 'error');
+    // 只发布选中的窗口
+    const windowsToPublish = windowStates.filter(s => 
+      s.tasks.length > 0 && s.status !== 'error' && selectedWindows.has(s.windowId)
+    );
     
-    if (windowsWithTasks.length === 0) {
-      showMessage('没有可发布的笔记', 'error');
+    if (windowsToPublish.length === 0) {
+      showMessage('没有选中可发布的窗口', 'error');
       return;
     }
 
     setIsPublishing(true);
-    showMessage(`开始并行发布 ${windowsWithTasks.length} 个窗口的笔记...`, 'info', 0);
+    showMessage(`开始发布 ${windowsToPublish.length} 个窗口的笔记...`, 'info', 0);
 
-    // 更新所有窗口状态为 publishing
+    // 更新选中窗口状态为 publishing
     setWindowStates(prev => prev.map(s => 
-      s.tasks.length > 0 && s.status !== 'error' 
+      s.tasks.length > 0 && s.status !== 'error' && selectedWindows.has(s.windowId)
         ? { ...s, status: 'publishing' as const } 
         : s
     ));
 
     try {
-      const windowTasks = windowsWithTasks.map(s => ({
+      const windowTasks = windowsToPublish.map(s => ({
         windowId: s.windowId,
         windowName: s.windowName,
         tasks: s.tasks,
@@ -195,9 +207,43 @@ function MultiAccountPublish(): JSX.Element {
     }
   };
 
+  // 清空笔记
+  const handleClearNotes = (): void => {
+    setWindowStates([]);
+    setSelectedWindows(new Set());
+    showMessage('已清空笔记列表', 'info');
+  };
+
+  // 切换窗口选中状态
+  const toggleWindowSelection = (windowId: string): void => {
+    setSelectedWindows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(windowId)) {
+        newSet.delete(windowId);
+      } else {
+        newSet.add(windowId);
+      }
+      return newSet;
+    });
+  };
+
+  // 全选/取消全选
+  const toggleSelectAll = (): void => {
+    const selectableWindows = windowStates.filter(s => s.tasks.length > 0 && s.status !== 'error');
+    if (selectedWindows.size === selectableWindows.length) {
+      setSelectedWindows(new Set());
+    } else {
+      setSelectedWindows(new Set(selectableWindows.map(s => s.windowId)));
+    }
+  };
+
   // 计算总数
   const totalTasks = windowStates.reduce((sum, s) => sum + s.tasks.length, 0);
   const windowsWithTasks = windowStates.filter(s => s.tasks.length > 0 && s.status !== 'error').length;
+  // 计算选中窗口的任务数
+  const selectedTasks = windowStates
+    .filter(s => selectedWindows.has(s.windowId) && s.tasks.length > 0 && s.status !== 'error')
+    .reduce((sum, s) => sum + s.tasks.length, 0);
 
   return (
     <div className="multi-account-publish">
@@ -233,13 +279,23 @@ function MultiAccountPublish(): JSX.Element {
               <button
                 className="btn-publish"
                 onClick={handleStartPublish}
-                disabled={loading || totalTasks === 0}
+                disabled={loading || selectedTasks === 0}
               >
-                🚀 开始发布 ({totalTasks} 条)
+                🚀 开始发布 ({selectedTasks} 条)
               </button>
             ) : (
               <button className="btn-stop" onClick={handleStopPublish}>
                 ⏹️ 停止发布
+              </button>
+            )}
+
+            {windowStates.length > 0 && !isPublishing && (
+              <button
+                className="btn-clear"
+                onClick={handleClearNotes}
+                disabled={loading}
+              >
+                🗑️ 清空笔记
               </button>
             )}
 
@@ -279,6 +335,19 @@ function MultiAccountPublish(): JSX.Element {
                 <span className="option-text">飞书图片</span>
                 <span className="option-desc">使用飞书表格中的封面图片</span>
               </label>
+              <label className={`option ${imageSource === 'text2image' ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="imageSource"
+                  value="text2image"
+                  checked={imageSource === 'text2image'}
+                  onChange={() => handleImageSourceChange('text2image')}
+                  disabled={isPublishing}
+                />
+                <span className="option-icon">✨</span>
+                <span className="option-text">文字配图</span>
+                <span className="option-desc">使用小红书文字配图功能生成</span>
+              </label>
             </div>
           </div>
 
@@ -289,9 +358,31 @@ function MultiAccountPublish(): JSX.Element {
                 <p>点击「加载笔记」从各个表格获取待发布内容</p>
               </div>
             ) : (
-              windowStates.map(state => (
-                <WindowCard key={state.windowId} state={state} />
-              ))
+              <>
+                {/* 全选按钮 */}
+                {windowsWithTasks > 0 && (
+                  <div className="select-all-bar">
+                    <label className="select-all-label">
+                      <input
+                        type="checkbox"
+                        checked={selectedWindows.size === windowsWithTasks && windowsWithTasks > 0}
+                        onChange={toggleSelectAll}
+                        disabled={isPublishing}
+                      />
+                      <span>全选 ({selectedWindows.size}/{windowsWithTasks})</span>
+                    </label>
+                  </div>
+                )}
+                {windowStates.map(state => (
+                  <WindowCard 
+                    key={state.windowId} 
+                    state={state}
+                    selected={selectedWindows.has(state.windowId)}
+                    onToggleSelect={() => toggleWindowSelection(state.windowId)}
+                    disabled={isPublishing || state.tasks.length === 0 || state.status === 'error'}
+                  />
+                ))}
+              </>
             )}
           </div>
         </>
@@ -308,7 +399,12 @@ function MultiAccountPublish(): JSX.Element {
 }
 
 // 窗口卡片组件
-function WindowCard({ state }: { state: WindowPublishState }): JSX.Element {
+function WindowCard({ state, selected, onToggleSelect, disabled }: { 
+  state: WindowPublishState;
+  selected: boolean;
+  onToggleSelect: () => void;
+  disabled: boolean;
+}): JSX.Element {
   const [expanded, setExpanded] = useState(false);
 
   const getStatusBadge = () => {
@@ -333,13 +429,21 @@ function WindowCard({ state }: { state: WindowPublishState }): JSX.Element {
     : 0;
 
   return (
-    <div className={`window-card ${state.status}`}>
-      <div className="window-header" onClick={() => setExpanded(!expanded)}>
-        <div className="window-info">
+    <div className={`window-card ${state.status} ${selected ? 'selected' : ''}`}>
+      <div className="window-header">
+        <label className="window-checkbox" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelect}
+            disabled={disabled}
+          />
+        </label>
+        <div className="window-info" onClick={() => setExpanded(!expanded)}>
           <span className="window-name">{state.windowName}</span>
           <span className="table-name">{state.feishuTableName || state.feishuTableId}</span>
         </div>
-        <div className="window-status">
+        <div className="window-status" onClick={() => setExpanded(!expanded)}>
           {getStatusBadge()}
           <span className="task-count">{state.tasks.length} 条笔记</span>
           <span className="expand-icon">{expanded ? '▼' : '▶'}</span>

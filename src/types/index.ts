@@ -39,7 +39,8 @@ export interface BitBrowserWindow {
 export interface WindowTableMapping {
   windowId: string;
   windowName: string;
-  feishuTableId: string;
+  feishuTableId: string;      // 飞书多维表格 Base ID (app_token)
+  feishuDataTableId?: string; // 飞书数据表 Table ID (tbl开头)，可选，不填则使用第一个表
   feishuTableName?: string;
 }
 
@@ -116,7 +117,7 @@ export interface ValidationResult {
 export type BrowserType = 'chrome' | 'bitbrowser';
 
 // 图片来源类型
-export type ImageSourceType = 'local' | 'feishu';
+export type ImageSourceType = 'local' | 'feishu' | 'text2image';
 
 // 比特浏览器配置
 export interface BitBrowserConfig {
