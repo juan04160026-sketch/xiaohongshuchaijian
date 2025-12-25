@@ -272,6 +272,52 @@ export class MultiAccountPublisher {
 
 
   /**
+   * 计算字符串的视觉长度（正确处理 emoji）
+   * emoji 算作 1 个字符
+   */
+  private getVisualLength(str: string): number {
+    return [...str].length;
+  }
+
+  /**
+   * 移除字符串中的所有 emoji
+   */
+  private removeEmoji(str: string): string {
+    // 匹配常见的 emoji 范围
+    return str.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/gu, '');
+  }
+
+  /**
+   * 按视觉长度截断字符串（正确处理 emoji）
+   * 优先保留文字，截断时去掉emoji
+   */
+  private truncateTitle(title: string, maxLength: number): string {
+    const chars = [...title];
+    const visualLength = chars.length;
+    
+    // 如果不超过限制，保留完整标题
+    if (visualLength <= maxLength) {
+      return title;
+    }
+    
+    // 计算去掉emoji后的长度
+    const textOnly = this.removeEmoji(title);
+    const textLength = [...textOnly].length;
+    
+    // 如果纯文字不超过20字，保留完整标题（包括emoji）
+    // 小红书可能会自动处理超出的emoji
+    if (textLength <= maxLength) {
+      console.log(`   📝 纯文字${textLength}字，保留完整标题（含emoji）`);
+      return title;
+    }
+    
+    // 纯文字也超过20字，需要截断
+    // 先去掉emoji，再截断到20字
+    const textChars = [...textOnly];
+    return textChars.slice(0, maxLength).join('');
+  }
+
+  /**
    * 输入标题（超过20字自动截断）
    */
   private async inputTitle(page: Page, title: string): Promise<void> {
@@ -283,13 +329,23 @@ export class MultiAccountPublisher {
         await page.keyboard.press('Delete');
         await page.waitForTimeout(300);
 
+        // 智能截断：优先保留文字内容
+        const visualLength = this.getVisualLength(title);
+        const textOnly = this.removeEmoji(title);
+        const textLength = this.getVisualLength(textOnly);
+        
+        console.log(`   📊 原标题: "${title}" (总长度:${visualLength}, 纯文字:${textLength})`);
+        
         let finalTitle = title;
-        if (finalTitle.length > 20) {
-          finalTitle = finalTitle.substring(0, 20);
-          console.log('   ⚠️ 标题超过20字，已截断');
+        
+        // 只有纯文字超过20字才截断
+        if (textLength > 20) {
+          finalTitle = this.truncateTitle(title, 20);
+          console.log(`   ⚠️ 纯文字超过20字(${textLength}字)，已截断`);
         }
 
-        console.log(`   📝 准备输入标题: "${finalTitle}" (${finalTitle.length}字)`);
+        const finalVisualLength = this.getVisualLength(finalTitle);
+        console.log(`   📝 准备输入标题: "${finalTitle}" (视觉长度:${finalVisualLength}字, JS长度:${finalTitle.length})`);
         
         // 方法1: 使用 evaluate 直接设置 input 的 value 并触发事件
         await page.evaluate((text) => {
@@ -304,10 +360,11 @@ export class MultiAccountPublisher {
         
         // 验证输入结果
         let inputValue = await titleInput.inputValue();
-        console.log(`   方法1结果: "${inputValue}" (${inputValue.length}字)`);
+        const inputVisualLength = this.getVisualLength(inputValue);
+        console.log(`   方法1结果: "${inputValue}" (视觉长度:${inputVisualLength}字)`);
         
         // 如果方法1失败，尝试方法2: fill
-        if (inputValue.length !== finalTitle.length) {
+        if (inputVisualLength !== finalVisualLength) {
           console.log(`   ⚠️ 方法1长度不匹配，尝试 fill 方法`);
           await titleInput.click();
           await page.keyboard.press('Control+A');
@@ -316,27 +373,27 @@ export class MultiAccountPublisher {
           await titleInput.fill(finalTitle);
           await page.waitForTimeout(500);
           inputValue = await titleInput.inputValue();
-          console.log(`   方法2结果: "${inputValue}" (${inputValue.length}字)`);
+          console.log(`   方法2结果: "${inputValue}" (视觉长度:${this.getVisualLength(inputValue)}字)`);
         }
         
         // 如果方法2也失败，尝试方法3: 逐字符输入
-        if (inputValue.length !== finalTitle.length) {
+        if (this.getVisualLength(inputValue) !== finalVisualLength) {
           console.log(`   ⚠️ 方法2长度不匹配，尝试逐字符输入`);
           await titleInput.click();
           await page.keyboard.press('Control+A');
           await page.keyboard.press('Delete');
           await page.waitForTimeout(200);
           
-          // 逐字符输入，每个字符间隔50ms
-          for (const char of finalTitle) {
+          // 逐字符输入，使用 spread 运算符正确处理 emoji
+          for (const char of [...finalTitle]) {
             await page.keyboard.type(char, { delay: 50 });
           }
           await page.waitForTimeout(500);
           inputValue = await titleInput.inputValue();
-          console.log(`   方法3结果: "${inputValue}" (${inputValue.length}字)`);
+          console.log(`   方法3结果: "${inputValue}" (视觉长度:${this.getVisualLength(inputValue)}字)`);
         }
         
-        console.log(`   ✅ 最终标题: "${inputValue}" (${inputValue.length}字)`)
+        console.log(`   ✅ 最终标题: "${inputValue}" (视觉长度:${this.getVisualLength(inputValue)}字)`)
       }
     } catch (e) {
       console.log('   ⚠️ 标题输入失败:', e);
