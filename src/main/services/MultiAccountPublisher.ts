@@ -134,7 +134,6 @@ export class MultiAccountPublisher {
         if (images.length === 0) {
           // 飞书图片为空，自动切换到文字配图模式
           console.log('   ⚠️ 飞书图片为空，自动切换到文字配图模式');
-          useText2ImageFallback = true;
           await this.useText2Image(page, task.title);
         } else {
           console.log(`   使用飞书图片: ${images.length} 张`);
@@ -245,10 +244,81 @@ export class MultiAccountPublisher {
       if (publishBtn) {
         await publishBtn.click();
         console.log('   ✅ 发布按钮已点击');
-        await page.waitForTimeout(5000);
+        
+        // 等待并验证发布结果
+        let publishSuccess = false;
+        let publishError = '';
+        
+        for (let i = 0; i < 15; i++) {
+          await page.waitForTimeout(1000);
+          
+          // 检查页面是否还存在
+          try {
+            const isClosed = page.isClosed();
+            if (isClosed) {
+              publishError = '页面被意外关闭';
+              break;
+            }
+          } catch (e) {
+            publishError = '页面连接丢失';
+            break;
+          }
+          
+          // 检查是否有错误提示
+          const errorToast = await page.$('.d-toast-error, .error-toast, .toast-error, [class*="error"]');
+          if (errorToast) {
+            const errorText = await errorToast.textContent();
+            if (errorText && (errorText.includes('失败') || errorText.includes('错误') || errorText.includes('error'))) {
+              publishError = errorText || '发布失败';
+              break;
+            }
+          }
+          
+          // 检查是否跳转到成功页面或显示成功提示
+          const currentUrl = page.url();
+          if (currentUrl.includes('/publish/success') || currentUrl.includes('published')) {
+            publishSuccess = true;
+            console.log('   ✅ 检测到发布成功页面');
+            break;
+          }
+          
+          // 检查成功提示
+          const successToast = await page.$('.d-toast-success, .success-toast, [class*="success"]');
+          if (successToast) {
+            const successText = await successToast.textContent();
+            if (successText && (successText.includes('成功') || successText.includes('发布'))) {
+              publishSuccess = true;
+              console.log('   ✅ 检测到发布成功提示');
+              break;
+            }
+          }
+          
+          // 检查发布按钮是否消失（可能表示发布成功）
+          const btnStillExists = await page.$('button.publishBtn');
+          if (!btnStillExists && i > 3) {
+            // 按钮消失且没有错误，可能是成功了
+            publishSuccess = true;
+            console.log('   ✅ 发布按钮已消失，可能发布成功');
+            break;
+          }
+        }
+        
+        if (publishError) {
+          throw new Error(publishError);
+        }
+        
+        if (!publishSuccess) {
+          console.log('   ⚠️ 无法确认发布结果，假定成功');
+        }
+      } else {
+        throw new Error('找不到发布按钮');
       }
 
-      await page.close();
+      try {
+        await page.close();
+      } catch (e) {
+        // 页面可能已经关闭，忽略错误
+      };
 
       const duration = Date.now() - startTime;
       return {

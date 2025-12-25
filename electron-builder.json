@@ -3,7 +3,7 @@
   "productName": "小红书自动发布插件",
   "directories": {
     "buildResources": "assets",
-    "output": "dist"
+    "output": "release"
   },
   "files": [
     "dist/main/**/*",
@@ -13,20 +13,11 @@
   "win": {
     "target": [
       {
-        "target": "nsis",
-        "arch": ["x64"]
-      },
-      {
-        "target": "portable",
+        "target": "dir",
         "arch": ["x64"]
       }
-    ]
-  },
-  "nsis": {
-    "oneClick": false,
-    "allowToChangeInstallationDirectory": true,
-    "createDesktopShortcut": true,
-    "createStartMenuShortcut": true
+    ],
+    "signAndEditExecutable": false
   },
   "mac": {
     "target": [

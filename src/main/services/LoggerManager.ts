@@ -93,6 +93,11 @@ export class LoggerManager {
     return this.logs.filter((log) => log.message.toLowerCase().includes(lowerQuery) || log.taskId.toLowerCase().includes(lowerQuery));
   }
 
+  clearLogs(): void {
+    this.logs = [];
+    this.saveLogs();
+  }
+
   getLogsByTask(taskId: string): Log[] {
     return this.logs.filter((log) => log.taskId === taskId);
   }

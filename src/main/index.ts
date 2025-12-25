@@ -161,6 +161,7 @@ function setupIPC(): void {
   // Logger IPC handlers
   ipcMain.handle('logs:get', (_, filter) => loggerManager.getLogs(filter));
   ipcMain.handle('logs:search', (_, query) => loggerManager.searchLogs(query));
+  ipcMain.handle('logs:clear', () => loggerManager.clearLogs());
 
   // Dialog IPC handlers
   ipcMain.handle('dialog:selectDirectory', async () => {

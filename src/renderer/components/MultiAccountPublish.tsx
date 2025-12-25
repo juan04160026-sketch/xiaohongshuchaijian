@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { WindowPublishState, WindowTableMapping, ImageSourceType } from '../../types';
 import './MultiAccountPublish.css';
 
@@ -11,19 +11,44 @@ function MultiAccountPublish(): JSX.Element {
   const [loading, setLoading] = useState(false);
   const [imageSource, setImageSource] = useState<ImageSourceType>('local');
   const [selectedWindows, setSelectedWindows] = useState<Set<string>>(new Set());
+  const messageTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // 显示消息，自动消失
   const showMessage = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info', duration = 5000) => {
+    // 清除之前的定时器
+    if (messageTimerRef.current) {
+      clearTimeout(messageTimerRef.current);
+      messageTimerRef.current = null;
+    }
+    
     setMessage(msg);
     setMessageType(type);
+    
+    // 如果duration > 0，设置自动消失
     if (duration > 0) {
-      setTimeout(() => setMessage(''), duration);
+      messageTimerRef.current = setTimeout(() => {
+        setMessage('');
+        messageTimerRef.current = null;
+      }, duration);
     }
   }, []);
 
   // 关闭消息
   const closeMessage = useCallback(() => {
+    if (messageTimerRef.current) {
+      clearTimeout(messageTimerRef.current);
+      messageTimerRef.current = null;
+    }
     setMessage('');
+  }, []);
+
+  // 组件卸载时清除定时器
+  useEffect(() => {
+    return () => {
+      if (messageTimerRef.current) {
+        clearTimeout(messageTimerRef.current);
+      }
+    };
   }, []);
 
   // 组件挂载和每次显示时都重新加载配置
@@ -62,7 +87,7 @@ function MultiAccountPublish(): JSX.Element {
     }
 
     setLoading(true);
-    showMessage('正在从各个表格加载笔记...', 'info', 0); // 不自动消失
+    showMessage('正在从各个表格加载笔记...', 'info', 30000); // 30秒后自动消失
 
     try {
       const states = await (window as any).api.feishu.loadByWindows();
@@ -83,7 +108,7 @@ function MultiAccountPublish(): JSX.Element {
       }
     } catch (error) {
       console.error('加载笔记失败:', error);
-      showMessage('加载失败: ' + (error as Error).message, 'error', 0);
+      showMessage('加载失败: ' + (error as Error).message, 'error', 10000);
     } finally {
       setLoading(false);
     }
@@ -120,7 +145,7 @@ function MultiAccountPublish(): JSX.Element {
     }
 
     setIsPublishing(true);
-    showMessage(`开始发布 ${windowsToPublish.length} 个窗口的笔记...`, 'info', 0);
+    showMessage(`开始发布 ${windowsToPublish.length} 个窗口的笔记...`, 'info', 60000); // 60秒后自动消失
 
     // 更新选中窗口状态为 publishing
     setWindowStates(prev => prev.map(s => 
@@ -164,12 +189,36 @@ function MultiAccountPublish(): JSX.Element {
 
       showMessage(`发布完成！成功: ${totalSuccess}, 失败: ${totalFail}。正在刷新列表...`, totalFail > 0 ? 'warning' : 'success', 5000);
       
+      // 保存已完成的窗口状态
+      const completedWindowIds = new Set(
+        windowStates
+          .filter(s => selectedWindows.has(s.windowId) && s.tasks.length > 0)
+          .map(s => s.windowId)
+      );
+      
       // 发布完成后自动重新加载笔记列表
       setTimeout(async () => {
         try {
           const states = await (window as any).api.feishu.loadByWindows();
-          setWindowStates(states);
-          const newTotalTasks = states.reduce((sum: number, s: WindowPublishState) => sum + s.tasks.length, 0);
+          
+          // 合并状态：保留已完成窗口的完成状态
+          const mergedStates = states.map((s: WindowPublishState) => {
+            if (completedWindowIds.has(s.windowId)) {
+              const prevState = windowStates.find(ws => ws.windowId === s.windowId);
+              // 如果该窗口之前有任务且现在没有任务了，说明全部发布完成
+              if (prevState && prevState.tasks.length > 0 && s.tasks.length === 0) {
+                return {
+                  ...s,
+                  status: 'completed' as const,
+                  progress: prevState.progress || { total: 0, completed: 0, failed: 0 }
+                };
+              }
+            }
+            return s;
+          });
+          
+          setWindowStates(mergedStates);
+          const newTotalTasks = mergedStates.reduce((sum: number, s: WindowPublishState) => sum + s.tasks.length, 0);
           showMessage(`列表已刷新，剩余 ${newTotalTasks} 条待发布笔记`, 'info');
         } catch (e) {
           console.error('刷新列表失败:', e);
@@ -177,7 +226,7 @@ function MultiAccountPublish(): JSX.Element {
       }, 2000);
     } catch (error) {
       console.error('发布失败:', error);
-      showMessage('发布失败: ' + (error as Error).message, 'error', 0);
+      showMessage('发布失败: ' + (error as Error).message, 'error', 10000);
       
       // 更新状态为错误
       setWindowStates(prev => prev.map(s => 

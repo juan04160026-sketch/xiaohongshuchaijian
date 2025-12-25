@@ -1,0 +1,478 @@
+.user-guide {
+  display: flex;
+  height: 100%;
+  background: #f5f7fa;
+}
+
+.guide-sidebar {
+  width: 200px;
+  background: #fff;
+  border-right: 1px solid #e4e7ed;
+  padding: 20px 0;
+  flex-shrink: 0;
+}
+
+.guide-sidebar h3 {
+  padding: 0 20px;
+  margin: 0 0 15px 0;
+  font-size: 16px;
+  color: #303133;
+}
+
+.guide-menu {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.guide-menu li {
+  padding: 12px 20px;
+  cursor: pointer;
+  color: #606266;
+  font-size: 14px;
+  transition: all 0.2s;
+  border-left: 3px solid transparent;
+}
+
+.guide-menu li:hover {
+  background: #f5f7fa;
+  color: #409eff;
+}
+
+.guide-menu li.active {
+  background: #ecf5ff;
+  color: #409eff;
+  border-left-color: #409eff;
+  font-weight: 500;
+}
+
+.guide-content {
+  flex: 1;
+  padding: 20px 30px;
+  overflow-y: auto;
+}
+
+.guide-section h2 {
+  margin: 0 0 20px 0;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #409eff;
+  color: #303133;
+  font-size: 20px;
+}
+
+.info-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.info-card h3 {
+  margin: 0 0 15px 0;
+  color: #303133;
+  font-size: 16px;
+}
+
+.info-card p {
+  color: #606266;
+  line-height: 1.6;
+  margin: 0 0 10px 0;
+}
+
+.info-card.highlight {
+  border-left: 4px solid #409eff;
+}
+
+.info-card.important {
+  border-left: 4px solid #e6a23c;
+  background: #fdf6ec;
+}
+
+/* 功能网格 */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.feature-item {
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 15px;
+  text-align: center;
+}
+
+.feature-icon {
+  font-size: 28px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.feature-item h4 {
+  margin: 0 0 5px 0;
+  color: #303133;
+  font-size: 14px;
+}
+
+.feature-item p {
+  margin: 0;
+  font-size: 12px;
+  color: #909399;
+}
+
+/* 表格样式 */
+.guide-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.guide-table th,
+.guide-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border: 1px solid #ebeef5;
+}
+
+.guide-table th {
+  background: #f5f7fa;
+  color: #303133;
+  font-weight: 500;
+}
+
+.guide-table td {
+  color: #606266;
+}
+
+.guide-table code {
+  background: #f5f7fa;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  color: #e6a23c;
+}
+
+/* 步骤流程 */
+.steps-flow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 15px;
+  flex-wrap: wrap;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ecf5ff;
+  padding: 10px 15px;
+  border-radius: 20px;
+}
+
+.step-number {
+  width: 24px;
+  height: 24px;
+  background: #409eff;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.step-text {
+  color: #409eff;
+  font-weight: 500;
+}
+
+.step-arrow {
+  color: #c0c4cc;
+  font-size: 18px;
+}
+
+/* 步骤列表 */
+.guide-steps {
+  padding-left: 0;
+  counter-reset: step;
+  list-style: none;
+}
+
+.guide-steps > li {
+  position: relative;
+  padding: 15px 15px 15px 50px;
+  margin-bottom: 10px;
+  background: #f5f7fa;
+  border-radius: 8px;
+  counter-increment: step;
+}
+
+.guide-steps > li::before {
+  content: counter(step);
+  position: absolute;
+  left: 15px;
+  top: 15px;
+  width: 24px;
+  height: 24px;
+  background: #409eff;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.guide-steps > li strong {
+  color: #303133;
+}
+
+.guide-steps > li p {
+  margin: 5px 0 0 0;
+  color: #909399;
+  font-size: 13px;
+}
+
+.guide-steps > li ul {
+  margin: 10px 0 0 0;
+  padding-left: 20px;
+}
+
+.guide-steps > li ul li {
+  color: #606266;
+  margin-bottom: 5px;
+  font-size: 13px;
+}
+
+/* 选项卡片 */
+.option-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.option-card {
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 15px;
+  border: 2px solid transparent;
+  position: relative;
+}
+
+.option-card.recommended {
+  border-color: #67c23a;
+  background: #f0f9eb;
+}
+
+.option-card .badge {
+  position: absolute;
+  top: -8px;
+  right: 10px;
+  background: #67c23a;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+.option-card h4 {
+  margin: 0 0 8px 0;
+  color: #303133;
+}
+
+.option-card p {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  color: #606266;
+}
+
+.option-card ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.option-card ul li {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 4px;
+}
+
+/* 代码示例 */
+.code-example {
+  background: #2d3748;
+  border-radius: 8px;
+  padding: 15px;
+  margin: 10px 0;
+}
+
+.code-example p {
+  color: #a0aec0;
+  margin: 0 0 8px 0;
+  font-size: 12px;
+}
+
+.code-example code {
+  color: #68d391;
+  font-family: 'Consolas', monospace;
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.code-example .highlight-text {
+  color: #f6e05e;
+  background: rgba(246, 224, 94, 0.2);
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.code-example .highlight-text2 {
+  color: #63b3ed;
+  background: rgba(99, 179, 237, 0.2);
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+/* ID说明 */
+.id-explain {
+  list-style: none;
+  padding: 0;
+  margin: 15px 0 0 0;
+}
+
+.id-explain li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: #f5f7fa;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.id-label {
+  background: #409eff;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.id-value {
+  font-family: monospace;
+  color: #e6a23c;
+  background: #fdf6ec;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.id-desc {
+  color: #909399;
+  font-size: 12px;
+}
+
+/* 提示框 */
+.tip-box {
+  background: #ecf5ff;
+  border: 1px solid #b3d8ff;
+  border-radius: 6px;
+  padding: 12px 15px;
+  margin-top: 15px;
+  color: #409eff;
+  font-size: 13px;
+}
+
+/* 列表样式 */
+.guide-list {
+  padding-left: 20px;
+}
+
+.guide-list li {
+  margin-bottom: 10px;
+  color: #606266;
+}
+
+.guide-list li strong {
+  color: #303133;
+}
+
+/* FAQ样式 */
+.faq-item {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 15px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.faq-item h4 {
+  margin: 0 0 10px 0;
+  color: #409eff;
+  font-size: 15px;
+}
+
+.faq-item p {
+  color: #606266;
+  margin: 0 0 10px 0;
+  line-height: 1.6;
+}
+
+.faq-item ul {
+  margin: 10px 0 0 0;
+  padding-left: 20px;
+}
+
+.faq-item ul li {
+  color: #606266;
+  margin-bottom: 5px;
+}
+
+.faq-item code {
+  background: #f5f7fa;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  color: #e6a23c;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .user-guide {
+    flex-direction: column;
+  }
+
+  .guide-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #e4e7ed;
+  }
+
+  .guide-menu {
+    display: flex;
+    overflow-x: auto;
+    padding: 0 10px;
+  }
+
+  .guide-menu li {
+    white-space: nowrap;
+    border-left: none;
+    border-bottom: 3px solid transparent;
+  }
+
+  .guide-menu li.active {
+    border-left-color: transparent;
+    border-bottom-color: #409eff;
+  }
+
+  .feature-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

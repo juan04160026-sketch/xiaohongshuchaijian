@@ -17,6 +17,7 @@ function ConfigSettings(): JSX.Element {
   const [testing, setTesting] = useState(false);
   const [testingWindowId, setTestingWindowId] = useState<string | null>(null);
   const [mappingTestResults, setMappingTestResults] = useState<Record<string, any>>({});
+  const [testingAll, setTestingAll] = useState(false);
 
   useEffect(() => {
     loadConfig();
@@ -48,7 +49,7 @@ function ConfigSettings(): JSX.Element {
     }
   };
 
-  // 测试飞书连接
+  // 测试飞书连接（单个）
   const handleTestFeishu = async (tableId?: string, windowId?: string, dataTableId?: string): Promise<void> => {
     if (!config?.feishu.appId || !config?.feishu.appSecret) {
       setMessage('❌ 请先填写 App ID 和 App Secret');
@@ -96,6 +97,64 @@ function ConfigSettings(): JSX.Element {
       setTesting(false);
       setTestingWindowId(null);
     }
+  };
+
+  // 测试所有映射
+  const handleTestAllMappings = async (): Promise<void> => {
+    if (!config?.feishu.appId || !config?.feishu.appSecret) {
+      setMessage('❌ 请先填写 App ID 和 App Secret');
+      return;
+    }
+
+    if (mappings.length === 0) {
+      setMessage('❌ 没有配置映射');
+      return;
+    }
+
+    const validMappings = mappings.filter(m => m.feishuTableId);
+    if (validMappings.length === 0) {
+      setMessage('❌ 没有配置表格ID的映射');
+      return;
+    }
+
+    setTestingAll(true);
+    setMappingTestResults({});
+    setMessage(`正在测试 ${validMappings.length} 个映射...`);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    // 逐个测试，避免并发问题
+    for (const mapping of validMappings) {
+      setTestingWindowId(mapping.windowId);
+      
+      try {
+        const result = await (window as any).api.feishu.test(
+          config.feishu.appId,
+          config.feishu.appSecret,
+          mapping.feishuTableId,
+          mapping.feishuDataTableId
+        );
+        
+        setMappingTestResults(prev => ({ ...prev, [mapping.windowId]: result }));
+        
+        if (result.success) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch (error) {
+        failCount++;
+        setMappingTestResults(prev => ({ 
+          ...prev, 
+          [mapping.windowId]: { success: false, error: (error as Error).message } 
+        }));
+      }
+    }
+
+    setTestingWindowId(null);
+    setTestingAll(false);
+    setMessage(`✅ 测试完成：成功 ${successCount} 个，失败 ${failCount} 个`);
   };
 
   const handleAddMapping = (win: BitBrowserWindow): void => {
@@ -432,7 +491,18 @@ function ConfigSettings(): JSX.Element {
 
       {/* 窗口与表格映射 */}
       <div className="config-section">
-        <h3>窗口与表格映射 ({mappings.length})</h3>
+        <div className="section-header">
+          <h3>窗口与表格映射 ({mappings.length})</h3>
+          {mappings.length > 0 && (
+            <button 
+              className="btn-test-all" 
+              onClick={handleTestAllMappings} 
+              disabled={testing || testingAll}
+            >
+              {testingAll ? '测试中...' : '🔄 全部测试'}
+            </button>
+          )}
+        </div>
         <p className="help-text">Base ID 是多维表格的ID，数据表ID 是具体表的ID（tbl开头，复制表格时会不同）</p>
         {mappings.length === 0 ? (
           <p className="empty-text">暂无映射配置，请从上方添加浏览器窗口</p>
@@ -446,39 +516,45 @@ function ConfigSettings(): JSX.Element {
                 <div key={mapping.windowId} className="mapping-item-wrapper">
                   <div className="mapping-item">
                     <div className="mapping-window">
-                      <span className="label">窗口:</span>
-                      <span className="value">{mapping.windowName}</span>
+                      <span className="window-label">窗口:</span>
+                      <span className="window-value">{mapping.windowName}</span>
                       <span className="window-id-small">({mapping.windowId.substring(0, 8)}...)</span>
                     </div>
-                    <div className="form-group" style={{ flex: 1 }}>
-                      <input
-                        type="text"
-                        value={mapping.feishuTableId}
-                        onChange={(e) => handleTableIdChange(mapping.windowId, e.target.value)}
-                        placeholder="Base ID (多维表格ID)"
-                      />
+                    <div className="mapping-inputs">
+                      <div className="mapping-input-group">
+                        <label>Base ID</label>
+                        <input
+                          type="text"
+                          value={mapping.feishuTableId}
+                          onChange={(e) => handleTableIdChange(mapping.windowId, e.target.value)}
+                          placeholder="多维表格ID"
+                        />
+                      </div>
+                      <div className="mapping-input-group">
+                        <label>数据表ID</label>
+                        <input
+                          type="text"
+                          value={mapping.feishuDataTableId || ''}
+                          onChange={(e) => handleDataTableIdChange(mapping.windowId, e.target.value)}
+                          placeholder="tbl开头（可选）"
+                        />
+                      </div>
                     </div>
-                    <div className="form-group" style={{ flex: 1 }}>
-                      <input
-                        type="text"
-                        value={mapping.feishuDataTableId || ''}
-                        onChange={(e) => handleDataTableIdChange(mapping.windowId, e.target.value)}
-                        placeholder="数据表ID (tbl开头，可选)"
-                      />
+                    <div className="mapping-actions">
+                      <button
+                        className="btn-test-small"
+                        onClick={() => handleTestFeishu(mapping.feishuTableId, mapping.windowId, mapping.feishuDataTableId)}
+                        disabled={isTestingThis || testingAll || !mapping.feishuTableId}
+                      >
+                        {isTestingThis ? '测试中...' : '测试'}
+                      </button>
+                      <button
+                        className="btn-remove"
+                        onClick={() => handleRemoveMapping(mapping.windowId)}
+                      >
+                        删除
+                      </button>
                     </div>
-                    <button
-                      className="btn-test-small"
-                      onClick={() => handleTestFeishu(mapping.feishuTableId, mapping.windowId, mapping.feishuDataTableId)}
-                      disabled={testing || !mapping.feishuTableId}
-                    >
-                      {isTestingThis ? '测试中...' : '测试'}
-                    </button>
-                    <button
-                      className="btn-remove"
-                      onClick={() => handleRemoveMapping(mapping.windowId)}
-                    >
-                      删除
-                    </button>
                   </div>
                   {/* 每个映射的测试结果 */}
                   {mappingResult && (

@@ -43,6 +43,14 @@
   cursor: not-allowed;
 }
 
+.btn-clear-logs {
+  background-color: #ff4d4f !important;
+}
+
+.btn-clear-logs:hover {
+  background-color: #ff7875 !important;
+}
+
 .btn-test {
   background-color: #722ed1 !important;
 }
@@ -190,4 +198,33 @@
   text-align: right;
   font-size: 12px;
   color: #999;
+}
+
+/* 自动刷新开关 */
+.auto-refresh-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: #666;
+  cursor: pointer;
+}
+
+.auto-refresh-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* 日志行样式 */
+.log-row.log-error {
+  background-color: #fff2f0;
+}
+
+.log-row.log-warn {
+  background-color: #fffbe6;
+}
+
+.log-row:hover {
+  background-color: #f5f5f5 !important;
 }

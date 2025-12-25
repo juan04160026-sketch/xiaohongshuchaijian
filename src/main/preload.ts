@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('api', {
   logs: {
     get: (filter?: any) => ipcRenderer.invoke('logs:get', filter),
     search: (query: string) => ipcRenderer.invoke('logs:search', query),
+    clear: () => ipcRenderer.invoke('logs:clear'),
   },
   dialog: {
     selectDirectory: () => ipcRenderer.invoke('dialog:selectDirectory'),

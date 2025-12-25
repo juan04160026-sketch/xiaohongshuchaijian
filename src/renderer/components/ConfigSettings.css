@@ -287,21 +287,78 @@
 .mappings-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .mapping-item {
   display: flex;
   align-items: center;
-  gap: 15px;
-  padding: 12px;
+  gap: 12px;
+  padding: 15px;
   background: #fafafa;
   border: 1px solid #e8e8e8;
   border-radius: 6px;
+  flex-wrap: wrap;
 }
 
 .mapping-window {
-  min-width: 150px;
+  width: 200px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mapping-window .window-label {
+  font-size: 11px;
+  color: #888;
+}
+
+.mapping-window .window-value {
+  font-weight: 500;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mapping-inputs {
+  display: flex;
+  gap: 10px;
+  flex: 1;
+  min-width: 300px;
+}
+
+.mapping-input-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mapping-input-group label {
+  font-size: 11px;
+  color: #888;
+}
+
+.mapping-input-group input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.mapping-input-group input:focus {
+  outline: none;
+  border-color: #1890ff;
+}
+
+.mapping-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .mapping-window .label {
@@ -471,7 +528,7 @@
   padding: 8px 12px;
   border-radius: 4px;
   font-size: 13px;
-  margin-left: 165px;
+  margin-left: 212px;
 }
 
 .mapping-test-result.success {
@@ -484,4 +541,24 @@
   background: #fff2f0;
   border: 1px solid #ffccc7;
   color: #ff4d4f;
+}
+
+/* 全部测试按钮 */
+.btn-test-all {
+  padding: 8px 16px;
+  background: #52c41a;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.btn-test-all:hover {
+  background: #73d13d;
+}
+
+.btn-test-all:disabled {
+  background: #d9d9d9;
+  cursor: not-allowed;
 }

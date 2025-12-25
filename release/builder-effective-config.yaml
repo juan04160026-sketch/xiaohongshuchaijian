@@ -1,0 +1,25 @@
+directories:
+  output: release
+  buildResources: assets
+appId: com.xiaohongshu.autopublish
+productName: 小红书自动发布插件
+files:
+  - filter:
+      - dist/main/**/*
+      - dist/renderer/**/*
+      - node_modules/**/*
+win:
+  target:
+    - target: dir
+      arch:
+        - x64
+  signAndEditExecutable: false
+mac:
+  target:
+    - dmg
+    - zip
+linux:
+  target:
+    - AppImage
+    - deb
+electronVersion: 27.3.11

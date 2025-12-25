@@ -4,11 +4,12 @@ import MultiAccountPublish from './components/MultiAccountPublish';
 import ConfigSettings from './components/ConfigSettings';
 import LogsViewer from './components/LogsViewer';
 import ImageCombiner from './components/ImageCombiner';
+import UserGuide from './components/UserGuide';
 
-type TabType = 'config' | 'combiner' | 'publish' | 'logs';
+type TabType = 'guide' | 'config' | 'combiner' | 'publish' | 'logs';
 
 function App(): JSX.Element {
-  const [activeTab, setActiveTab] = useState<TabType>('config');
+  const [activeTab, setActiveTab] = useState<TabType>('guide');
 
   return (
     <div className="app">
@@ -16,33 +17,42 @@ function App(): JSX.Element {
         <h1>小红书自动发布插件</h1>
         <nav className="app-nav">
           <button
+            className={`nav-button ${activeTab === 'guide' ? 'active' : ''}`}
+            onClick={() => setActiveTab('guide')}
+          >
+            📚 使用说明
+          </button>
+          <button
             className={`nav-button ${activeTab === 'config' ? 'active' : ''}`}
             onClick={() => setActiveTab('config')}
           >
-            系统设置
+            ⚙️ 系统设置
           </button>
           <button
             className={`nav-button ${activeTab === 'combiner' ? 'active' : ''}`}
             onClick={() => setActiveTab('combiner')}
           >
-            图文合成
+            🖼️ 图文合成
           </button>
           <button
             className={`nav-button ${activeTab === 'publish' ? 'active' : ''}`}
             onClick={() => setActiveTab('publish')}
           >
-            发布管理
+            🚀 发布管理
           </button>
           <button
             className={`nav-button ${activeTab === 'logs' ? 'active' : ''}`}
             onClick={() => setActiveTab('logs')}
           >
-            日志查询
+            📋 日志查询
           </button>
         </nav>
       </header>
 
       <main className="app-main">
+        <div style={{ display: activeTab === 'guide' ? 'block' : 'none', height: '100%' }}>
+          <UserGuide />
+        </div>
         <div style={{ display: activeTab === 'config' ? 'block' : 'none', height: '100%' }}>
           <ConfigSettings />
         </div>

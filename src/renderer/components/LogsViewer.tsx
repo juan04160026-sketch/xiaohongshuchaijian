@@ -15,7 +15,7 @@ function LogsViewer(): JSX.Element {
     
     // 自动刷新
     if (autoRefresh) {
-      refreshIntervalRef.current = setInterval(loadLogs, 3000);
+      refreshIntervalRef.current = setInterval(loadLogs, 2000);
     }
     
     return () => {
@@ -31,6 +31,16 @@ function LogsViewer(): JSX.Element {
       setLogs(allLogs || []);
     } catch (error) {
       console.error('Failed to load logs:', error);
+    }
+  };
+
+  // 清空日志
+  const handleClearLogs = async (): Promise<void> => {
+    try {
+      await (window as any).api.logs.clear?.();
+      setLogs([]);
+    } catch (error) {
+      console.error('Failed to clear logs:', error);
     }
   };
 
@@ -82,10 +92,36 @@ function LogsViewer(): JSX.Element {
     return labelMap[level] || level;
   };
 
+  // 格式化日志消息，使其更易读
+  const formatMessage = (log: Log): string => {
+    const msg = log.message || '';
+    // 如果消息已经很清晰，直接返回
+    if (msg.includes('发布成功') || msg.includes('发布失败') || msg.includes('开始发布')) {
+      return msg;
+    }
+    // 处理状态变更消息
+    if (msg.includes('任务状态变更')) {
+      const metadata = log.metadata as any;
+      if (metadata?.title) {
+        return `${metadata.title} - ${metadata.status || msg}`;
+      }
+    }
+    return msg;
+  };
+
+  // 获取简短的任务ID显示
+  const getShortTaskId = (taskId: string): string => {
+    if (!taskId || taskId === 'system') return '系统';
+    if (taskId.length > 12) {
+      return taskId.substring(0, 8) + '...';
+    }
+    return taskId;
+  };
+
   return (
     <div className="logs-viewer">
       <div className="logs-header">
-        <h2>日志查询 ({logs.length})</h2>
+        <h2>📋 日志查询 ({logs.length})</h2>
         <div className="header-actions">
           <label className="auto-refresh-toggle">
             <input
@@ -96,7 +132,10 @@ function LogsViewer(): JSX.Element {
             自动刷新
           </label>
           <button onClick={handleRefresh} disabled={loading}>
-            {loading ? '加载中...' : '刷新'}
+            {loading ? '加载中...' : '🔄 刷新'}
+          </button>
+          <button onClick={handleClearLogs} className="btn-clear-logs">
+            🗑️ 清空
           </button>
         </div>
       </div>
@@ -157,7 +196,7 @@ function LogsViewer(): JSX.Element {
               </thead>
               <tbody>
                 {filteredLogs.map((log) => (
-                  <tr key={log.id}>
+                  <tr key={log.id} className={`log-row log-${log.level}`}>
                     <td className="time">{new Date(log.timestamp).toLocaleString('zh-CN')}</td>
                     <td>
                       <span
@@ -167,8 +206,8 @@ function LogsViewer(): JSX.Element {
                         {getLevelLabel(log.level)}
                       </span>
                     </td>
-                    <td className="task-id">{log.taskId}</td>
-                    <td className="message" title="">{log.message}</td>
+                    <td className="task-id" title={log.taskId}>{getShortTaskId(log.taskId)}</td>
+                    <td className="message" title={log.message}>{formatMessage(log)}</td>
                   </tr>
                 ))}
               </tbody>
