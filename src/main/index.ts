@@ -73,6 +73,10 @@ let bitBrowserManager: BitBrowserManager;
 let multiAccountPublisher: MultiAccountPublisher;
 let chromePublisher: ChromePublisher;
 
+// 发布控制标志
+let isPublishingStopped = false;
+let currentPublishAbortController: AbortController | null = null;
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -277,6 +281,11 @@ function setupIPC(): void {
 
   // 按窗口并行发布 - 每个窗口独立发布自己表格的笔记
   ipcMain.handle('publish:byWindows', async (_, windowTasks: { windowId: string; windowName: string; tasks: any[] }[]) => {
+    // 重置停止标志
+    isPublishingStopped = false;
+    currentPublishAbortController = new AbortController();
+    multiAccountPublisher.setStopped(false);
+    
     try {
       const config = configManager.getConfig();
       const browserType = config.browserType || 'bitbrowser';
@@ -374,8 +383,16 @@ function setupIPC(): void {
         multiAccountPublisher.setPublishInterval(config.publishInterval);
         multiAccountPublisher.setImageSource(imageSource);
 
-        // 并行发布每个窗口的任务
-        const publishPromises = windowTasks.map(async ({ windowId, windowName, tasks }) => {
+        // 串行发布每个窗口的任务（一个窗口发完再发下一个，避免同时打开多个窗口）
+        const allResults = [];
+        
+        for (const { windowId, windowName, tasks } of windowTasks) {
+          // 检查是否已停止
+          if (isPublishingStopped) {
+            console.log('🛑 发布已停止，跳过剩余窗口');
+            break;
+          }
+          
           // 记录窗口开始发布
           loggerManager.logTaskStatus(windowId, 'window_started', {
             message: `窗口 ${windowName} 开始发布 ${tasks.length} 条笔记`,
@@ -430,10 +447,8 @@ function setupIPC(): void {
             }
           );
           
-          return { windowId, windowName, results };
-        });
-
-        const allResults = await Promise.all(publishPromises);
+          allResults.push({ windowId, windowName, results });
+        }
         
         // 记录发布完成
         const totalSuccess = allResults.reduce((sum, r) => sum + r.results.filter((x: any) => x.success).length, 0);
@@ -455,6 +470,20 @@ function setupIPC(): void {
 
   ipcMain.handle('publish:stop', async () => {
     try {
+      // 设置停止标志
+      isPublishingStopped = true;
+      
+      // 设置发布器的停止标志
+      multiAccountPublisher.setStopped(true);
+      
+      // 触发 abort 信号
+      if (currentPublishAbortController) {
+        currentPublishAbortController.abort();
+        currentPublishAbortController = null;
+      }
+      
+      console.log('🛑 发布已停止');
+      
       const browserType = configManager.getBrowserType();
       if (browserType === 'chrome') {
         await chromePublisher.close();
@@ -620,6 +649,7 @@ function setupIPC(): void {
             images: feishuImages,  // 飞书下载的图片路径
             feishuImages,  // 专门存储飞书图片路径
             topic: getText(fields['主题']) || '',
+            tags: getText(fields['标签']) || '',  // 读取标签字段
             status: 'pending' as const,
             scheduledTime: fields['定时发布时间'] ? new Date(fields['定时发布时间']) : new Date(),
             createdTime: fields['生成时间'] ? new Date(fields['生成时间']) : new Date(),

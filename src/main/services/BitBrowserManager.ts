@@ -110,8 +110,10 @@ export class BitBrowserManager {
 
   /**
    * 打开指定窗口并返回 Playwright 连接
+   * @param windowId 窗口ID
+   * @param activateWindow 是否激活窗口（弹到前台），默认 false 保持后台运行
    */
-  async openWindow(windowId: string): Promise<BrowserContext> {
+  async openWindow(windowId: string, activateWindow: boolean = false): Promise<BrowserContext> {
     // 检查是否已经打开
     const existing = this.openedBrowsers.get(windowId);
     if (existing) {
@@ -121,10 +123,12 @@ export class BitBrowserManager {
 
     try {
       // 调用比特浏览器 API 打开窗口
+      // extractable: false 表示不激活窗口，保持后台运行
       const response = await this.client.post('/browser/open', {
         id: windowId,
         loadExtensions: false,
-        args: [],
+        extractable: activateWindow,  // false = 不激活窗口，保持后台
+        args: ['--no-focus-on-open'],  // 尝试添加启动参数
       });
 
       if (!response.data.success) {
@@ -132,7 +136,7 @@ export class BitBrowserManager {
       }
 
       const { ws, http } = response.data.data;
-      console.log(`窗口 ${windowId} 已打开，WebSocket: ${ws}, HTTP: ${http}`);
+      console.log(`窗口 ${windowId} 已打开（后台模式），WebSocket: ${ws}, HTTP: ${http}`);
 
       // 构建正确的 CDP 连接地址
       let cdpUrl = http;

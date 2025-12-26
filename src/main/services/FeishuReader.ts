@@ -162,6 +162,7 @@ export class FeishuReader {
         coverImage: images.length > 0 ? images[0] : '',
         images,
         topic: this.getTextValue(fields['主题']) || '',
+        tags: this.getTextValue(fields['标签']) || '',  // 读取标签字段
         status: 'pending',
         scheduledTime: fields['定时时间'] ? new Date(fields['定时时间']) : new Date(),
         createdTime: fields['生成时间'] ? new Date(fields['生成时间']) : new Date(),

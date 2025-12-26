@@ -45,6 +45,7 @@ export class MultiAccountPublisher {
   private imageDir: string = '';
   private publishInterval: number = 30000; // 同一账号发布间隔（毫秒）
   private imageSource: ImageSourceType = 'local'; // 图片来源
+  private isStopped: boolean = false; // 停止标志
 
   constructor() {
     this.bitBrowser = new BitBrowserManager();
@@ -60,6 +61,20 @@ export class MultiAccountPublisher {
 
   setImageSource(source: ImageSourceType): void {
     this.imageSource = source;
+  }
+
+  /**
+   * 设置停止标志
+   */
+  setStopped(stopped: boolean): void {
+    this.isStopped = stopped;
+  }
+
+  /**
+   * 检查是否已停止
+   */
+  checkStopped(): boolean {
+    return this.isStopped;
   }
 
   /**
@@ -104,6 +119,18 @@ export class MultiAccountPublisher {
    * 在指定窗口发布单条内容
    */
   async publishOne(task: PublishTaskWithAccount): Promise<PublishResult> {
+    // 检查是否已停止
+    if (this.isStopped) {
+      console.log(`🛑 发布已停止，跳过任务: "${task.title}"`);
+      return {
+        taskId: task.id,
+        success: false,
+        publishedTime: new Date(),
+        duration: 0,
+        errorMessage: '发布已停止',
+      };
+    }
+    
     const startTime = Date.now();
     console.log(`\n📤 [${task.windowName || task.windowId}] 发布: "${task.title}"`);
     const imageSourceName = this.imageSource === 'feishu' ? '飞书图片' : this.imageSource === 'text2image' ? '文字配图' : '本地合成图片';
@@ -231,8 +258,16 @@ export class MultiAccountPublisher {
       // 输入标题（截断到20字）
       await this.inputTitle(page, task.title);
 
-      // 输入正文（处理话题）
+      // 输入正文
       await this.inputContent(page, task.content);
+
+      // 输入标签（从标签字段读取）
+      console.log(`   📋 标签字段值: "${task.tags || '(空)'}"`);
+      if (task.tags) {
+        await this.inputTags(page, task.tags);
+      } else {
+        console.log('   ℹ️ 没有标签需要输入');
+      }
 
       // 添加商品
       if (task.productId) {
@@ -472,7 +507,7 @@ export class MultiAccountPublisher {
   }
 
   /**
-   * 输入正文（智能处理话题标签）
+   * 输入正文（不包含话题标签）
    */
   private async inputContent(page: Page, content: string): Promise<void> {
     try {
@@ -483,36 +518,65 @@ export class MultiAccountPublisher {
         await page.keyboard.press('Control+A');
         await page.keyboard.press('Delete');
 
-        // 解析正文，分离普通文本和话题标签
-        const parts = content.split(/(#[^\s#\[]+)/g);
+        // 直接输入正文内容（不处理话题标签）
+        await page.keyboard.type(content, { delay: 10 });
+        console.log('   ✅ 正文输入完成');
+      }
+    } catch (e) {
+      console.log('   ⚠️ 正文输入失败');
+    }
+    await page.waitForTimeout(1000);
+  }
 
-        for (const part of parts) {
-          if (!part) continue;
+  /**
+   * 输入话题标签（从标签字段读取）
+   */
+  private async inputTags(page: Page, tags: string): Promise<void> {
+    if (!tags || tags.trim() === '') {
+      console.log('   ℹ️ 没有标签需要输入');
+      return;
+    }
 
-          if (part.startsWith('#') && part.length > 1) {
+    try {
+      const contentEditor = await page.$(SELECTORS.content);
+      if (contentEditor) {
+        // 点击正文编辑器末尾
+        await contentEditor.click();
+        await page.keyboard.press('End');
+        await page.waitForTimeout(300);
+
+        // 先输入换行
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(200);
+
+        // 解析标签，分离各个话题
+        const tagList = tags.split(/(#[^\s#\[]+)/g).filter(t => t && t.trim());
+
+        for (const tag of tagList) {
+          if (tag.startsWith('#') && tag.length > 1) {
             // 话题标签
-            await page.keyboard.type(part, { delay: 50 });
+            await page.keyboard.type(tag, { delay: 50 });
             await page.waitForTimeout(1500);
 
             // 尝试选择下拉框
             const topicItem = await page.$(SELECTORS.topicItem);
             if (topicItem) {
               await topicItem.click();
-              console.log(`   ✅ 已选择话题: ${part}`);
+              console.log(`   ✅ 已选择话题: ${tag}`);
             }
             await page.waitForTimeout(500);
             await page.keyboard.type(' ', { delay: 50 });
-          } else {
-            // 普通文本
-            await page.keyboard.type(part, { delay: 10 });
+          } else if (tag.trim()) {
+            // 普通文本（标签之间的空格等）
+            await page.keyboard.type(tag, { delay: 10 });
           }
         }
-        console.log('   ✅ 正文输入完成');
+        console.log('   ✅ 标签输入完成');
       }
     } catch (e) {
-      console.log('   ⚠️ 正文输入失败');
+      console.log('   ⚠️ 标签输入失败:', e);
     }
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
   }
 
   /**
@@ -648,6 +712,9 @@ export class MultiAccountPublisher {
     onTaskComplete?: (result: PublishResult, task: PublishTaskWithAccount) => Promise<void>
   ): Promise<PublishResult[]> {
     const results: PublishResult[] = [];
+    
+    // 重置停止标志
+    this.isStopped = false;
 
     // 按窗口分组
     const tasksByWindow = new Map<string, PublishTaskWithAccount[]>();
@@ -659,9 +726,21 @@ export class MultiAccountPublisher {
 
     // 逐个窗口发布
     for (const [windowId, windowTasks] of tasksByWindow) {
+      // 检查是否已停止
+      if (this.isStopped) {
+        console.log('🛑 发布已停止，跳过剩余窗口');
+        break;
+      }
+      
       console.log(`\n========== 窗口: ${windowTasks[0].windowName || windowId} ==========`);
       
       for (let i = 0; i < windowTasks.length; i++) {
+        // 检查是否已停止
+        if (this.isStopped) {
+          console.log('🛑 发布已停止，跳过剩余任务');
+          break;
+        }
+        
         const task = windowTasks[i];
         console.log(`[${i + 1}/${windowTasks.length}]`);
         
@@ -678,7 +757,7 @@ export class MultiAccountPublisher {
         }
 
         // 同一窗口内的发布间隔
-        if (i < windowTasks.length - 1) {
+        if (i < windowTasks.length - 1 && !this.isStopped) {
           console.log(`⏳ 等待 ${this.publishInterval / 1000} 秒...`);
           await new Promise(resolve => setTimeout(resolve, this.publishInterval));
         }
@@ -741,6 +820,8 @@ export class MultiAccountPublisher {
    * 关闭所有浏览器窗口
    */
   async closeAll(): Promise<void> {
+    // 设置停止标志
+    this.isStopped = true;
     await this.bitBrowser.closeAll();
   }
 }

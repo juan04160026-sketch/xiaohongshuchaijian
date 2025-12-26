@@ -9,6 +9,7 @@ export interface PublishTask {
   coverImage: string;
   images?: string[];
   topic: string;
+  tags?: string;  // 话题标签字段，如 "#小红书 #穿搭"
   status: TaskStatus;
   scheduledTime: Date;
   createdTime: Date;

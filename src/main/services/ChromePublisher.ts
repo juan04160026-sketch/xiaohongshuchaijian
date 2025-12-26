@@ -307,6 +307,11 @@ export class ChromePublisher {
       // 输入正文
       await this.inputContent(page, task.content);
 
+      // 输入标签（从标签字段读取）
+      if ((task as any).tags) {
+        await this.inputTags(page, (task as any).tags);
+      }
+
       // 添加商品
       if (task.productId) {
         await this.addProduct(page, task.productId);
@@ -550,32 +555,65 @@ export class ChromePublisher {
         await page.keyboard.press('Control+A');
         await page.keyboard.press('Delete');
 
-        const parts = content.split(/(#[^\s#\[]+)/g);
-
-        for (const part of parts) {
-          if (!part) continue;
-
-          if (part.startsWith('#') && part.length > 1) {
-            await page.keyboard.type(part, { delay: 50 });
-            await page.waitForTimeout(1500);
-
-            const topicItem = await page.$(SELECTORS.topicItem);
-            if (topicItem) {
-              await topicItem.click();
-              console.log(`   ✅ 已选择话题: ${part}`);
-            }
-            await page.waitForTimeout(500);
-            await page.keyboard.type(' ', { delay: 50 });
-          } else {
-            await page.keyboard.type(part, { delay: 10 });
-          }
-        }
+        // 直接输入正文内容（不处理话题标签）
+        await page.keyboard.type(content, { delay: 10 });
         console.log('   ✅ 正文输入完成');
       }
     } catch (e) {
       console.log('   ⚠️ 正文输入失败');
     }
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
+  }
+
+  /**
+   * 输入话题标签（从标签字段读取）
+   */
+  private async inputTags(page: Page, tags: string): Promise<void> {
+    if (!tags || tags.trim() === '') {
+      console.log('   ℹ️ 没有标签需要输入');
+      return;
+    }
+
+    try {
+      const contentEditor = await page.$(SELECTORS.content);
+      if (contentEditor) {
+        // 点击正文编辑器末尾
+        await contentEditor.click();
+        await page.keyboard.press('End');
+        await page.waitForTimeout(300);
+
+        // 先输入换行
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(200);
+
+        // 解析标签，分离各个话题
+        const tagList = tags.split(/(#[^\s#\[]+)/g).filter(t => t && t.trim());
+
+        for (const tag of tagList) {
+          if (tag.startsWith('#') && tag.length > 1) {
+            // 话题标签
+            await page.keyboard.type(tag, { delay: 50 });
+            await page.waitForTimeout(1500);
+
+            // 尝试选择下拉框
+            const topicItem = await page.$(SELECTORS.topicItem);
+            if (topicItem) {
+              await topicItem.click();
+              console.log(`   ✅ 已选择话题: ${tag}`);
+            }
+            await page.waitForTimeout(500);
+            await page.keyboard.type(' ', { delay: 50 });
+          } else if (tag.trim()) {
+            // 普通文本（标签之间的空格等）
+            await page.keyboard.type(tag, { delay: 10 });
+          }
+        }
+        console.log('   ✅ 标签输入完成');
+      }
+    } catch (e) {
+      console.log('   ⚠️ 标签输入失败:', e);
+    }
+    await page.waitForTimeout(1000);
   }
 
   /**
