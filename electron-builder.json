@@ -22,9 +22,6 @@
   "nsis": {
     "oneClick": false,
     "allowToChangeInstallationDirectory": true,
-    "installerIcon": "assets/icon.ico",
-    "uninstallerIcon": "assets/icon.ico",
-    "installerHeaderIcon": "assets/icon.ico",
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
     "shortcutName": "小红书自动发布插件"

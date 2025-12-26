@@ -44,7 +44,7 @@ function App(): JSX.Element {
             className={`nav-button ${activeTab === 'logs' ? 'active' : ''}`}
             onClick={() => setActiveTab('logs')}
           >
-            📋 日志查询
+            📊 发布记录
           </button>
         </nav>
       </header>
