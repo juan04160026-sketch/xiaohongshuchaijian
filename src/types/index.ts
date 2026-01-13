@@ -135,6 +135,22 @@ export interface ChromeConfig {
   headless?: boolean;       // 是否无头模式
 }
 
+// AI 配置
+export interface AIConfig {
+  geminiApiKey?: string;           // Gemini API Key
+  textModel?: string;              // 文案生成模型
+  imageModel?: string;             // 图片生成模型
+  customTextModel?: string;        // 自定义文案模型
+  customImageModel?: string;       // 自定义图片模型
+  // 提示词模板
+  titlePromptTemplate?: string;    // 标题生成提示词模板
+  contentPromptTemplate?: string;  // 文案生成提示词模板
+  imagePromptTemplate?: string;    // 图片生成提示词模板
+  // 预留国内 API
+  qwenApiKey?: string;             // 通义千问 API Key
+  wanxiangApiKey?: string;         // 通义万相 API Key
+}
+
 // Config
 export interface Config {
   feishu: FeishuConfig;
@@ -147,4 +163,5 @@ export interface Config {
   bitBrowser?: BitBrowserConfig;  // 比特浏览器配置
   chrome?: ChromeConfig;  // 谷歌浏览器配置
   windowTableMappings?: WindowTableMapping[];  // 窗口与飞书表格的映射
+  ai?: AIConfig;  // AI 配置
 }

@@ -2,6 +2,7 @@ import { chromium, Browser, BrowserContext, Page } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
 import { PublishTask, PublishResult, ChromeConfig, ImageSourceType } from '../../types';
+import { extractTagsFromContent } from '../utils/tagExtractor';
 
 // 发布页面 URL
 const PUBLISH_URL = 'https://creator.xiaohongshu.com/publish/publish?source=official&from=tab_switch&target=image';
@@ -307,9 +308,13 @@ export class ChromePublisher {
       // 输入正文
       await this.inputContent(page, task.content);
 
-      // 输入标签（从标签字段读取）
-      if ((task as any).tags) {
-        await this.inputTags(page, (task as any).tags);
+      // 输入标签（从文案中提取）
+      const tags = extractTagsFromContent(task.content);
+      console.log(`   📋 从文案中提取到 ${tags.length} 个标签: ${tags.join(', ')}`);
+      if (tags.length > 0) {
+        await this.inputTagsArray(page, tags);
+      } else {
+        console.log('   ℹ️ 文案中没有标签');
       }
 
       // 添加商品
@@ -566,7 +571,51 @@ export class ChromePublisher {
   }
 
   /**
-   * 输入话题标签（从标签字段读取）
+   * 输入话题标签（从标签数组）
+   */
+  private async inputTagsArray(page: Page, tags: string[]): Promise<void> {
+    if (!tags || tags.length === 0) {
+      console.log('   ℹ️ 没有标签需要输入');
+      return;
+    }
+
+    try {
+      const contentEditor = await page.$(SELECTORS.content);
+      if (contentEditor) {
+        // 点击正文编辑器末尾
+        await contentEditor.click();
+        await page.keyboard.press('End');
+        await page.waitForTimeout(300);
+
+        // 先输入换行
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(200);
+
+        // 逐个输入标签
+        for (const tag of tags) {
+          // 输入 # 和标签名
+          await page.keyboard.type(`#${tag}`, { delay: 50 });
+          await page.waitForTimeout(1500);
+
+          // 尝试选择下拉框
+          const topicItem = await page.$(SELECTORS.topicItem);
+          if (topicItem) {
+            await topicItem.click();
+            console.log(`   ✅ 已选择话题: #${tag}`);
+          }
+          await page.waitForTimeout(500);
+          await page.keyboard.type(' ', { delay: 50 });
+        }
+        console.log('   ✅ 标签输入完成');
+      }
+    } catch (e) {
+      console.log('   ⚠️ 标签输入失败:', e);
+    }
+    await page.waitForTimeout(1000);
+  }
+
+  /**
+   * 输入话题标签（从标签字段读取 - 保留用于兼容）
    */
   private async inputTags(page: Page, tags: string): Promise<void> {
     if (!tags || tags.trim() === '') {

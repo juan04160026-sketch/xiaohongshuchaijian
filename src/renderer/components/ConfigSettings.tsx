@@ -1,6 +1,23 @@
 import { useState, useEffect } from 'react';
-import type { Config, BitBrowserWindow, WindowTableMapping, BrowserType } from '../../types';
+import type { Config, BitBrowserWindow, WindowTableMapping, BrowserType, AIConfig } from '../../types';
 import './ConfigSettings.css';
+
+// 预设模型列表
+const TEXT_MODELS = [
+  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview (最新)' },
+  { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash (实验)' },
+  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
+  { id: 'gemini-exp-1206', name: 'Gemini Exp 1206' },
+  { id: 'custom', name: '自定义...' },
+];
+
+const IMAGE_MODELS = [
+  { id: 'gemini-3-pro-image-preview', name: 'Gemini 3 Pro Image (最新)' },
+  { id: 'imagen-3.0-generate-001', name: 'Imagen 3.0' },
+  { id: 'imagen-3.0-fast-generate-001', name: 'Imagen 3.0 Fast' },
+  { id: 'custom', name: '自定义...' },
+];
 
 function ConfigSettings(): JSX.Element {
   const [config, setConfig] = useState<Config | null>(null);
@@ -18,6 +35,24 @@ function ConfigSettings(): JSX.Element {
   const [testingWindowId, setTestingWindowId] = useState<string | null>(null);
   const [mappingTestResults, setMappingTestResults] = useState<Record<string, any>>({});
   const [testingAll, setTestingAll] = useState(false);
+  
+  // AI 配置
+  const [aiConfig, setAiConfig] = useState<AIConfig>({
+    geminiApiKey: '',
+    textModel: 'gemini-3-flash-preview',
+    imageModel: 'gemini-3-pro-image-preview',
+    titlePromptTemplate: '',
+    contentPromptTemplate: '',
+    imagePromptTemplate: '',
+  });
+  const [testingAiText, setTestingAiText] = useState(false);
+  const [testingAiImage, setTestingAiImage] = useState(false);
+  const [aiTextResult, setAiTextResult] = useState<any>(null);
+  const [aiImageResult, setAiImageResult] = useState<any>(null);
+  const [generatingBatch, setGeneratingBatch] = useState(false);
+  const [batchGenerateResult, setBatchGenerateResult] = useState<any>(null);
+  const [clearingGenerated, setClearingGenerated] = useState(false);
+  const [clearResult, setClearResult] = useState<any>(null);
 
   useEffect(() => {
     loadConfig();
@@ -31,6 +66,19 @@ function ConfigSettings(): JSX.Element {
       console.log('Window table mappings:', cfg.windowTableMappings);
       setConfig(cfg);
       setMappings(cfg.windowTableMappings || []);
+      // 加载 AI 配置
+      if (cfg.ai) {
+        setAiConfig({
+          geminiApiKey: cfg.ai.geminiApiKey || '',
+          textModel: cfg.ai.textModel || 'gemini-3-flash-preview',
+          imageModel: cfg.ai.imageModel || 'gemini-3-pro-image-preview',
+          customTextModel: cfg.ai.customTextModel || '',
+          customImageModel: cfg.ai.customImageModel || '',
+          titlePromptTemplate: cfg.ai.titlePromptTemplate || '',
+          contentPromptTemplate: cfg.ai.contentPromptTemplate || '',
+          imagePromptTemplate: cfg.ai.imagePromptTemplate || '',
+        });
+      }
     } catch (error) {
       console.error('Failed to load config:', error);
       setMessage('❌ 加载配置失败');
@@ -195,6 +243,7 @@ function ConfigSettings(): JSX.Element {
       const updatedConfig = {
         ...config,
         windowTableMappings: mappings,
+        ai: aiConfig,
       };
       await (window as any).api.config.set(updatedConfig);
       await (window as any).api.config.save();
@@ -205,6 +254,162 @@ function ConfigSettings(): JSX.Element {
       setMessage('❌ 配置保存失败');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // 测试 AI 文案生成
+  const handleTestAiText = async (): Promise<void> => {
+    if (!aiConfig.geminiApiKey) {
+      setMessage('❌ 请先填写 Gemini API Key');
+      return;
+    }
+    
+    const modelId = aiConfig.textModel === 'custom' 
+      ? aiConfig.customTextModel 
+      : aiConfig.textModel;
+    
+    if (!modelId) {
+      setMessage('❌ 请选择或输入文案模型');
+      return;
+    }
+    
+    setTestingAiText(true);
+    setAiTextResult(null);
+    setMessage('正在测试文案模型...');
+    
+    try {
+      const result = await (window as any).api.ai.testText(aiConfig.geminiApiKey, modelId);
+      
+      if (result.success) {
+        setAiTextResult({
+          success: true,
+          modelName: modelId,
+        });
+        setMessage('✅ 文案模型连接成功');
+      } else {
+        setAiTextResult({ success: false, error: result.error });
+        setMessage(`❌ ${result.error}`);
+      }
+    } catch (error: any) {
+      setAiTextResult({ success: false, error: error.message });
+      setMessage(`❌ 测试失败: ${error.message}`);
+    } finally {
+      setTestingAiText(false);
+    }
+  };
+
+  // 测试 AI 图片生成
+  const handleTestAiImage = async (): Promise<void> => {
+    if (!aiConfig.geminiApiKey) {
+      setMessage('❌ 请先填写 Gemini API Key');
+      return;
+    }
+    
+    setTestingAiImage(true);
+    setAiImageResult(null);
+    
+    try {
+      const modelId = aiConfig.imageModel === 'custom' 
+        ? aiConfig.customImageModel 
+        : aiConfig.imageModel;
+      
+      const result = await (window as any).api.ai.testImage(aiConfig.geminiApiKey, modelId);
+      
+      if (result.success) {
+        setAiImageResult({ success: true, modelName: modelId });
+        setMessage('✅ 图片模型连接成功');
+      } else {
+        setAiImageResult({ success: false, error: result.error });
+        setMessage(`❌ ${result.error}`);
+      }
+    } catch (error: any) {
+      setAiImageResult({ success: false, error: error.message });
+      setMessage(`❌ 测试失败: ${error.message}`);
+    } finally {
+      setTestingAiImage(false);
+    }
+  };
+
+  // 批量生成 AI 内容
+  const handleBatchGenerate = async (): Promise<void> => {
+    if (!aiConfig.geminiApiKey) {
+      setMessage('❌ 请先配置 Gemini API Key');
+      return;
+    }
+
+    if (!config?.feishu.appId || !config?.feishu.appSecret || !config?.feishu.tableId) {
+      setMessage('❌ 请先配置飞书连接');
+      return;
+    }
+
+    if (!aiConfig.titlePromptTemplate && !aiConfig.contentPromptTemplate && !aiConfig.imagePromptTemplate) {
+      setMessage('❌ 请至少配置一个提示词模板');
+      return;
+    }
+
+    setGeneratingBatch(true);
+    setBatchGenerateResult(null);
+    setMessage('🤖 开始批量生成内容...');
+
+    try {
+      const results = await (window as any).api.ai.generateBatch();
+      
+      if (Array.isArray(results)) {
+        const successCount = results.filter((r: any) => r.success).length;
+        const totalCount = results.length;
+        
+        setBatchGenerateResult({
+          success: true,
+          total: totalCount,
+          successCount,
+          failCount: totalCount - successCount,
+          results,
+        });
+        
+        setMessage(`✅ 批量生成完成：成功 ${successCount}/${totalCount} 条`);
+      } else if (results.error) {
+        setBatchGenerateResult({ success: false, error: results.error });
+        setMessage(`❌ ${results.error}`);
+      }
+    } catch (error: any) {
+      setBatchGenerateResult({ success: false, error: error.message });
+      setMessage(`❌ 批量生成失败: ${error.message}`);
+    } finally {
+      setGeneratingBatch(false);
+    }
+  };
+
+  // 清空已生成的内容
+  const handleClearGenerated = async (): Promise<void> => {
+    if (!config?.feishu.appId || !config?.feishu.appSecret || !config?.feishu.tableId) {
+      setMessage('❌ 请先配置飞书连接');
+      return;
+    }
+
+    const confirmed = window.confirm('确定要清空所有已生成的内容吗？\n\n这将清空状态为"已生成"的记录的标题、文案和封面，并将状态改为空。');
+    if (!confirmed) {
+      return;
+    }
+
+    setClearingGenerated(true);
+    setClearResult(null);
+    setMessage('🧹 正在清空已生成的内容...');
+
+    try {
+      const result = await (window as any).api.ai.clearGenerated();
+      
+      if (result.success) {
+        setClearResult({ success: true, count: result.count });
+        setMessage(`✅ 清空完成：已清空 ${result.count} 条记录`);
+      } else {
+        setClearResult({ success: false, error: result.error });
+        setMessage(`❌ ${result.error}`);
+      }
+    } catch (error: any) {
+      setClearResult({ success: false, error: error.message });
+      setMessage(`❌ 清空失败: ${error.message}`);
+    } finally {
+      setClearingGenerated(false);
     }
   };
 
@@ -302,6 +507,251 @@ function ConfigSettings(): JSX.Element {
             )}
           </div>
         )}
+      </div>
+
+      {/* AI 配置 */}
+      <div className="config-section ai-config-section">
+        <div className="section-header">
+          <h3>🤖 AI 配置 (Gemini)</h3>
+          <div className="ai-action-buttons">
+            <button 
+              className="btn-clear-generated" 
+              onClick={handleClearGenerated}
+              disabled={clearingGenerated || !config?.feishu.appId}
+              title="清空所有已生成的内容，以便重新生成"
+            >
+              {clearingGenerated ? '清空中...' : '🧹 清空已生成'}
+            </button>
+            <button 
+              className="btn-batch-generate" 
+              onClick={handleBatchGenerate}
+              disabled={generatingBatch || !aiConfig.geminiApiKey}
+            >
+              {generatingBatch ? '生成中...' : '🚀 批量生成内容'}
+            </button>
+          </div>
+        </div>
+        <p className="help-text">配置 Gemini API 用于自动生成小红书文案和图片</p>
+        
+        <div className="form-row">
+          <div className="form-group">
+            <label>Gemini API Key</label>
+            <input
+              type="password"
+              value={aiConfig.geminiApiKey || ''}
+              onChange={(e) => setAiConfig({ ...aiConfig, geminiApiKey: e.target.value })}
+              placeholder="AIzaSy..."
+            />
+            <p className="help-text">从 Google AI Studio 获取: aistudio.google.com</p>
+          </div>
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label>文案生成模型</label>
+            <div className="model-selector">
+              <select
+                value={aiConfig.textModel || 'gemini-2.5-flash'}
+                onChange={(e) => setAiConfig({ ...aiConfig, textModel: e.target.value })}
+              >
+                {TEXT_MODELS.map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+              <button 
+                className="btn-ai-test" 
+                onClick={handleTestAiText}
+                disabled={testingAiText || !aiConfig.geminiApiKey}
+              >
+                {testingAiText ? '测试中...' : '测试文案'}
+              </button>
+            </div>
+            {aiConfig.textModel === 'custom' && (
+              <div className="custom-model-input">
+                <label>自定义模型名称</label>
+                <input
+                  type="text"
+                  value={aiConfig.customTextModel || ''}
+                  onChange={(e) => setAiConfig({ ...aiConfig, customTextModel: e.target.value })}
+                  placeholder="输入模型名称，如 gemini-2.5-flash"
+                />
+              </div>
+            )}
+          </div>
+          
+          <div className="form-group">
+            <label>图片生成模型</label>
+            <div className="model-selector">
+              <select
+                value={aiConfig.imageModel || 'gemini-3-pro-image-preview'}
+                onChange={(e) => setAiConfig({ ...aiConfig, imageModel: e.target.value })}
+              >
+                {IMAGE_MODELS.map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+              <button 
+                className="btn-ai-test" 
+                onClick={handleTestAiImage}
+                disabled={testingAiImage || !aiConfig.geminiApiKey}
+              >
+                {testingAiImage ? '测试中...' : '测试图片'}
+              </button>
+            </div>
+            {aiConfig.imageModel === 'custom' && (
+              <div className="custom-model-input">
+                <label>自定义模型名称</label>
+                <input
+                  type="text"
+                  value={aiConfig.customImageModel || ''}
+                  onChange={(e) => setAiConfig({ ...aiConfig, customImageModel: e.target.value })}
+                  placeholder="输入模型名称，如 gemini-3-pro-image-preview"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 文案测试结果 */}
+        {aiTextResult && (
+          <div className={`ai-test-result ${aiTextResult.success ? 'success' : 'error'}`}>
+            {aiTextResult.success ? (
+              <>
+                <span>✅ 文案模型连接成功: {aiTextResult.modelName}</span>
+                {aiTextResult.generatedText && (
+                  <pre>{aiTextResult.generatedText.substring(0, 300)}...</pre>
+                )}
+              </>
+            ) : (
+              <span>❌ {aiTextResult.error}</span>
+            )}
+          </div>
+        )}
+
+        {/* 图片测试结果 */}
+        {aiImageResult && (
+          <div className={`ai-test-result ${aiImageResult.success ? 'success' : 'error'}`}>
+            {aiImageResult.success ? (
+              <span>✅ 图片模型连接成功: {aiImageResult.modelName}</span>
+            ) : (
+              <span>❌ {aiImageResult.error}</span>
+            )}
+          </div>
+        )}
+
+        {/* 批量生成结果 */}
+        {batchGenerateResult && (
+          <div className={`ai-test-result ${batchGenerateResult.success ? 'success' : 'error'}`}>
+            {batchGenerateResult.success ? (
+              <div>
+                <p>✅ 批量生成完成</p>
+                <p>总计: {batchGenerateResult.total} 条，成功: {batchGenerateResult.successCount} 条，失败: {batchGenerateResult.failCount} 条</p>
+                {batchGenerateResult.results && batchGenerateResult.results.length > 0 && (
+                  <details style={{ marginTop: '10px' }}>
+                    <summary style={{ cursor: 'pointer' }}>查看详情</summary>
+                    <div style={{ maxHeight: '200px', overflow: 'auto', marginTop: '10px' }}>
+                      {batchGenerateResult.results.map((r: any, i: number) => (
+                        <div key={i} style={{ padding: '5px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                          {r.success ? (
+                            <span>✅ 记录 {r.recordId.substring(0, 8)}... 生成成功</span>
+                          ) : (
+                            <span>❌ 记录 {r.recordId.substring(0, 8)}... 失败: {r.error}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </div>
+            ) : (
+              <span>❌ {batchGenerateResult.error}</span>
+            )}
+          </div>
+        )}
+
+        {/* 清空结果 */}
+        {clearResult && (
+          <div className={`ai-test-result ${clearResult.success ? 'success' : 'error'}`}>
+            {clearResult.success ? (
+              <span>✅ 已清空 {clearResult.count} 条记录的生成内容</span>
+            ) : (
+              <span>❌ {clearResult.error}</span>
+            )}
+          </div>
+        )}
+
+        {/* 预留国内 API */}
+        <div className="domestic-api-section">
+          <h4>🇨🇳 国内 API（预留）</h4>
+          <div className="form-row">
+            <div className="form-group">
+              <label>通义千问 API Key</label>
+              <input
+                type="password"
+                value={aiConfig.qwenApiKey || ''}
+                onChange={(e) => setAiConfig({ ...aiConfig, qwenApiKey: e.target.value })}
+                placeholder="暂未开放"
+                disabled
+              />
+            </div>
+            <div className="form-group">
+              <label>通义万相 API Key</label>
+              <input
+                type="password"
+                value={aiConfig.wanxiangApiKey || ''}
+                onChange={(e) => setAiConfig({ ...aiConfig, wanxiangApiKey: e.target.value })}
+                placeholder="暂未开放"
+                disabled
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 提示词模板配置 */}
+        <div className="prompt-templates-section">
+          <h4>📝 提示词模板配置</h4>
+          <p className="help-text">自定义 AI 生成内容的提示词，使用 <code>{'{{主题}}'}</code> 作为占位符</p>
+          
+          <div className="form-group">
+            <label>标题生成提示词</label>
+            <textarea
+              value={aiConfig.titlePromptTemplate || ''}
+              onChange={(e) => setAiConfig({ ...aiConfig, titlePromptTemplate: e.target.value })}
+              placeholder={'例如：请根据主题"{{主题}}"生成一个吸引人的小红书标题，要求简洁有力，包含关键词，长度15-25字。'}
+              rows={4}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>文案生成提示词</label>
+            <textarea
+              value={aiConfig.contentPromptTemplate || ''}
+              onChange={(e) => setAiConfig({ ...aiConfig, contentPromptTemplate: e.target.value })}
+              placeholder={'例如：请根据主题"{{主题}}"生成小红书文案。要求：1. 风格活泼有趣 2. 使用emoji 3. 末尾包含3-5个#标签 4. 长度200-500字'}
+              rows={6}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>图片生成提示词</label>
+            <textarea
+              value={aiConfig.imagePromptTemplate || ''}
+              onChange={(e) => setAiConfig({ ...aiConfig, imagePromptTemplate: e.target.value })}
+              placeholder={'例如：生成一张关于"{{主题}}"的小红书封面图，风格清新明亮，适合社交媒体分享，高清精美。'}
+              rows={4}
+            />
+          </div>
+
+          <div className="prompt-tips">
+            <p>💡 提示词编写技巧：</p>
+            <ul>
+              <li>使用 <code>{'{{主题}}'}</code> 占位符会被替换为飞书表格中的"主题"字段内容</li>
+              <li>文案提示词中要求在末尾包含 #标签，这样发布时可以自动提取</li>
+              <li>可以指定风格、长度、格式等具体要求</li>
+              <li>留空则不生成对应内容</li>
+            </ul>
+          </div>
+        </div>
       </div>
 
 

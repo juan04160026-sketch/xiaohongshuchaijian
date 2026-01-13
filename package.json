@@ -24,16 +24,19 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,json,md}\""
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@playwright/test": "^1.40.0",
     "axios": "^1.6.0",
     "electron-store": "^8.1.0",
     "form-data": "^4.0.0",
+    "https-proxy-agent": "^7.0.6",
     "node-fetch": "^2.7.0",
     "playwright": "^1.40.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",
     "@types/node": "^20.0.0",
+    "@types/node-fetch": "^2.6.13",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",

@@ -10,10 +10,16 @@ files:
       - node_modules/**/*
 win:
   target:
-    - target: dir
+    - target: nsis
       arch:
         - x64
   signAndEditExecutable: false
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 小红书自动发布插件
 mac:
   target:
     - dmg

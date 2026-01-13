@@ -18,6 +18,8 @@ import { PublishScheduler } from './services/PublishScheduler';
 import { BitBrowserManager } from './services/BitBrowserManager';
 import { MultiAccountPublisher, PublishTaskWithAccount } from './services/MultiAccountPublisher';
 import { ChromePublisher } from './services/ChromePublisher';
+import { GeminiService, TEXT_MODELS, IMAGE_MODELS } from './services/GeminiService';
+import { AIContentGenerator } from './services/AIContentGenerator';
 
 // 创建飞书 API 客户端
 const feishuClient = axios.create({
@@ -72,6 +74,8 @@ let publishScheduler: PublishScheduler;
 let bitBrowserManager: BitBrowserManager;
 let multiAccountPublisher: MultiAccountPublisher;
 let chromePublisher: ChromePublisher;
+let geminiService: GeminiService;
+let aiContentGenerator: AIContentGenerator;
 
 // 发布控制标志
 let isPublishingStopped = false;
@@ -133,6 +137,13 @@ function initializeServices(): void {
   
   // 谷歌浏览器发布器
   chromePublisher = new ChromePublisher();
+  
+  // Gemini AI 服务
+  const aiConfig = configManager.getAIConfig();
+  geminiService = new GeminiService(aiConfig.geminiApiKey || '');
+  
+  // AI 内容生成器
+  aiContentGenerator = new AIContentGenerator();
 }
 
 function setupIPC(): void {
@@ -797,6 +808,124 @@ function setupIPC(): void {
     } catch (error) {
       console.error('保存文件失败:', error);
       throw error;
+    }
+  });
+
+  // AI 相关 IPC handlers
+  ipcMain.handle('ai:getModels', () => {
+    return {
+      textModels: TEXT_MODELS,
+      imageModels: IMAGE_MODELS,
+    };
+  });
+
+  ipcMain.handle('ai:testText', async (_, apiKey: string, modelId: string) => {
+    try {
+      const service = new GeminiService(apiKey);
+      return await service.testTextConnection(modelId);
+    } catch (error: any) {
+      return { success: false, error: error.message || '测试失败' };
+    }
+  });
+
+  ipcMain.handle('ai:testImage', async (_, apiKey: string, modelId: string) => {
+    try {
+      const service = new GeminiService(apiKey);
+      return await service.testImageConnection(modelId);
+    } catch (error: any) {
+      return { success: false, error: error.message || '测试失败' };
+    }
+  });
+
+  ipcMain.handle('ai:generateText', async (_, title: string, modelId?: string) => {
+    try {
+      const aiConfig = configManager.getAIConfig();
+      if (!aiConfig.geminiApiKey) {
+        return { success: false, error: '请先配置 Gemini API Key' };
+      }
+      geminiService.setApiKey(aiConfig.geminiApiKey);
+      const model = modelId || aiConfig.textModel || 'gemini-3-flash-preview';
+      return await geminiService.generateContent(title, model);
+    } catch (error: any) {
+      return { success: false, error: error.message || '生成失败' };
+    }
+  });
+
+  ipcMain.handle('ai:generateImage', async (_, prompt: string, modelId?: string) => {
+    try {
+      const aiConfig = configManager.getAIConfig();
+      if (!aiConfig.geminiApiKey) {
+        return { success: false, error: '请先配置 Gemini API Key' };
+      }
+      geminiService.setApiKey(aiConfig.geminiApiKey);
+      const model = modelId || aiConfig.imageModel || 'gemini-3-pro-image-preview';
+      const imageDir = configManager.getImageDir();
+      return await geminiService.generateImage(prompt, model, imageDir);
+    } catch (error: any) {
+      return { success: false, error: error.message || '生成失败' };
+    }
+  });
+
+  // AI 内容生成 IPC handlers
+  ipcMain.handle('ai:generateForRecord', async (_, recordId: string, topic: string, dataTableId?: string) => {
+    try {
+      const aiConfig = configManager.getAIConfig();
+      const feishuConfig = configManager.getConfig().feishu;
+      
+      if (!aiConfig.geminiApiKey) {
+        return { success: false, error: '请先配置 Gemini API Key' };
+      }
+      
+      if (!feishuConfig.appId || !feishuConfig.appSecret || !feishuConfig.tableId) {
+        return { success: false, error: '请先配置飞书连接' };
+      }
+      
+      return await aiContentGenerator.generateForRecord(
+        recordId,
+        topic,
+        aiConfig,
+        feishuConfig,
+        dataTableId
+      );
+    } catch (error: any) {
+      return { success: false, error: error.message || '生成失败' };
+    }
+  });
+
+  ipcMain.handle('ai:generateBatch', async (_, dataTableId?: string) => {
+    try {
+      const aiConfig = configManager.getAIConfig();
+      const feishuConfig = configManager.getConfig().feishu;
+      
+      if (!aiConfig.geminiApiKey) {
+        return { success: false, error: '请先配置 Gemini API Key' };
+      }
+      
+      if (!feishuConfig.appId || !feishuConfig.appSecret || !feishuConfig.tableId) {
+        return { success: false, error: '请先配置飞书连接' };
+      }
+      
+      return await aiContentGenerator.generateBatch(aiConfig, feishuConfig, dataTableId);
+    } catch (error: any) {
+      return { success: false, error: error.message || '生成失败' };
+    }
+  });
+
+  // 清空已生成的内容
+  ipcMain.handle('ai:clearGenerated', async (_, dataTableId?: string) => {
+    try {
+      const feishuConfig = configManager.getConfig().feishu;
+      
+      if (!feishuConfig.appId || !feishuConfig.appSecret || !feishuConfig.tableId) {
+        return { success: false, error: '请先配置飞书连接' };
+      }
+      
+      const feishuReader = new FeishuReader();
+      await feishuReader.connect(feishuConfig);
+      
+      return await feishuReader.clearGeneratedContent(feishuConfig.tableId, dataTableId);
+    } catch (error: any) {
+      return { success: false, count: 0, error: error.message || '清空失败' };
     }
   });
 }

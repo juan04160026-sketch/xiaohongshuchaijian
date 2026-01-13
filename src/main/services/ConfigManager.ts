@@ -1,6 +1,6 @@
 import Store from 'electron-store';
 import crypto from 'crypto';
-import { Config, FeishuConfig, XhsAccount, BrowserType, ChromeConfig, ImageSourceType } from '../../types';
+import { Config, FeishuConfig, XhsAccount, BrowserType, ChromeConfig, ImageSourceType, AIConfig } from '../../types';
 
 export class ConfigManager {
   private store: Store<Config>;
@@ -133,6 +133,18 @@ export class ConfigManager {
     return this.store.get('imageSource') || 'local';
   }
 
+  // AI Config
+  setAIConfig(config: AIConfig): void {
+    this.store.set('ai', config);
+  }
+
+  getAIConfig(): AIConfig {
+    return this.store.get('ai') || {
+      textModel: 'gemini-3-flash-preview',
+      imageModel: 'gemini-3-pro-image-preview',
+    };
+  }
+
   getConfig(): Config {
     return {
       feishu: this.getFeishuConfig(),
@@ -144,6 +156,7 @@ export class ConfigManager {
       imageSource: this.getImageSource(),
       chrome: this.getChromeConfig(),
       windowTableMappings: this.getWindowTableMappings(),
+      ai: this.getAIConfig(),
     };
   }
 
@@ -171,6 +184,9 @@ export class ConfigManager {
     }
     if (config.windowTableMappings !== undefined) {
       this.setWindowTableMappings(config.windowTableMappings);
+    }
+    if (config.ai !== undefined) {
+      this.setAIConfig(config.ai);
     }
   }
 

@@ -44,4 +44,16 @@ contextBridge.exposeInMainWorld('api', {
     save: (dir: string, fileName: string, data: number[]) => 
       ipcRenderer.invoke('file:save', dir, fileName, data),
   },
+  // AI API
+  ai: {
+    getModels: () => ipcRenderer.invoke('ai:getModels'),
+    testText: (apiKey: string, modelId: string) => ipcRenderer.invoke('ai:testText', apiKey, modelId),
+    testImage: (apiKey: string, modelId: string) => ipcRenderer.invoke('ai:testImage', apiKey, modelId),
+    generateText: (title: string, modelId?: string) => ipcRenderer.invoke('ai:generateText', title, modelId),
+    generateImage: (prompt: string, modelId?: string) => ipcRenderer.invoke('ai:generateImage', prompt, modelId),
+    generateForRecord: (recordId: string, topic: string, dataTableId?: string) => 
+      ipcRenderer.invoke('ai:generateForRecord', recordId, topic, dataTableId),
+    generateBatch: (dataTableId?: string) => ipcRenderer.invoke('ai:generateBatch', dataTableId),
+    clearGenerated: (dataTableId?: string) => ipcRenderer.invoke('ai:clearGenerated', dataTableId),
+  },
 });

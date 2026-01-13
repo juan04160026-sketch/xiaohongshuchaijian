@@ -562,3 +562,252 @@
   background: #d9d9d9;
   cursor: not-allowed;
 }
+
+
+/* AI 配置样式 */
+.ai-config-section {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.ai-config-section h3 {
+  color: white;
+}
+
+.ai-config-section .form-group label {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.ai-config-section .help-text {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.ai-config-section input,
+.ai-config-section select {
+  background: rgba(255, 255, 255, 0.95);
+  border: none;
+}
+
+.ai-config-section input:focus,
+.ai-config-section select:focus {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+}
+
+/* 模型选择器 */
+.model-selector {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.model-selector select {
+  flex: 1;
+}
+
+.model-selector input {
+  flex: 1;
+}
+
+/* AI 测试按钮 */
+.btn-ai-test {
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.btn-ai-test:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.btn-ai-test:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-action-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+/* 批量生成按钮 */
+.btn-batch-generate,
+.btn-clear-generated {
+  padding: 10px 20px;
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  transition: all 0.3s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.btn-batch-generate {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.btn-clear-generated {
+  background: rgba(245, 87, 108, 0.3);
+  border-color: rgba(245, 87, 108, 0.5);
+}
+
+.btn-batch-generate:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.btn-clear-generated:hover:not(:disabled) {
+  background: rgba(245, 87, 108, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
+}
+
+.btn-batch-generate:disabled,
+.btn-clear-generated:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* AI 测试结果 */
+.ai-test-result {
+  margin-top: 15px;
+  padding: 15px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.ai-test-result.success {
+  background: rgba(82, 196, 26, 0.2);
+  border-color: rgba(82, 196, 26, 0.4);
+}
+
+.ai-test-result.error {
+  background: rgba(255, 77, 79, 0.2);
+  border-color: rgba(255, 77, 79, 0.4);
+}
+
+.ai-test-result pre {
+  margin: 10px 0 0 0;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* 预留国内 API 区域 */
+.domestic-api-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.domestic-api-section h4 {
+  margin: 0 0 15px 0;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* 自定义模型输入 */
+.custom-model-input {
+  margin-top: 10px;
+}
+
+.custom-model-input label {
+  font-size: 12px !important;
+}
+
+/* 提示词模板配置 */
+.prompt-templates-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.prompt-templates-section h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.prompt-templates-section .help-text {
+  margin-bottom: 15px;
+}
+
+.prompt-templates-section .help-text code {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.prompt-templates-section textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  background: rgba(255, 255, 255, 0.95);
+  color: #333;
+  box-sizing: border-box;
+}
+
+.prompt-templates-section textarea:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
+}
+
+.prompt-templates-section textarea::placeholder {
+  color: #999;
+  font-size: 12px;
+}
+
+.prompt-tips {
+  margin-top: 15px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.prompt-tips p {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.prompt-tips ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.prompt-tips li {
+  margin-bottom: 5px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.prompt-tips code {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+}
